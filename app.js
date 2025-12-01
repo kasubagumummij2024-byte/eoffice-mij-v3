@@ -322,7 +322,16 @@ async function createPDFBuffer(data) {
         <img src="${foot}" class="footer-img">
         </body></html>`;
 
-        const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
+        // MENJADI INI (LEBIH AMAN BUAT SERVER):
+        const browser = await puppeteer.launch({ 
+            headless: 'new', 
+            args: [
+                '--no-sandbox', 
+                '--disable-setuid-sandbox', 
+                '--disable-dev-shm-usage', // Penting untuk container Railway
+                '--disable-gpu'
+            ] 
+        });
         const page = await browser.newPage();
         await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
         await page.evaluate(() => {
