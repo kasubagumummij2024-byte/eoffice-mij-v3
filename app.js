@@ -9,6 +9,7 @@ const QRCode = require('qrcode');
 const ExcelJS = require('exceljs');
 const { PDFDocument } = require('pdf-lib');
 const { createCanvas, loadImage } = require('canvas');
+const APP_URL = "https://eoffice-mij-v3-production.up.railway.app";
 
 // GANTI BAGIAN INISIALISASI FIREBASE LAMA DENGAN INI:
 try {
@@ -188,12 +189,16 @@ async function stampPDF(originalPdfBase64, stampData) {
     }
 }
 
-// === MAIN PDF GENERATOR (REVISI FONT SIZE SERAGAM) ===
+// === MAIN PDF GENERATOR (FIX URL QR CODE) ===
 async function createPDFBuffer(data) {
+    
+    // A. JIKA MODE UPLOAD
     if (data.mode_buat === 'upload' && data.uploaded_file_base64) {
         const isApproved = data.status_global === 'APPROVED';
         const nomorSurat = isApproved ? data.nomor_surat : "Draft/......../........";
-        const qrLink = isApproved ? `https://eoffice-mij-v3-production.up.railway.app/${data.id_surat}` : 'PREVIEW_QR';
+        
+        // REVISI DISINI: Tambahkan '/verify/' agar link valid
+        const qrLink = isApproved ? `${APP_URL}/verify/${data.id_surat}` : 'PREVIEW_QR';
         
         return await stampPDF(data.uploaded_file_base64, {
             nomor_surat: nomorSurat,
@@ -204,14 +209,18 @@ async function createPDFBuffer(data) {
         });
     }
 
+    // B. JIKA MODE WEB
     try {
         const kop = imgToBase64('src/assets/Kop_Surat_Resmi.png');
         const foot = imgToBase64('src/assets/Footer_Surat.png');
         
         const isApproved = data.status_global === 'APPROVED';
         let qrBase64 = null;
+        
         if (isApproved) {
-            const info = `https://eoffice-mij-v3-production.up.railway.app/verify/${data.id_surat}`;
+            // Ini sudah benar, menggunakan /verify/
+            const info = `${APP_URL}/verify/${data.id_surat}`;
+            
             try {
                 const canvasSize = 200;
                 const canvas = createCanvas(canvasSize, canvasSize);
@@ -240,12 +249,12 @@ async function createPDFBuffer(data) {
         const nomorSurat = isApproved ? data.nomor_surat : "Draft/......../........";
         const lampiranText = (data.lampiran && data.lampiran.length > 0) ? "1 (satu) Berkas" : "-";
 
-        // === REVISI 1: TEMBUSAN (Hapus font-size: 10pt agar ikut default 12pt) ===
         let tembusanHtml = '';
         if (data.tembusan && data.tembusan.length > 0) {
             tembusanHtml = `
                 <div style="height: 125px;"></div> 
-                <div style="text-align: left;"> <b style="text-decoration: underline;">Tembusan:</b>
+                <div style="text-align: left;">
+                    <b style="text-decoration: underline;">Tembusan:</b>
                     <ol style="margin-top: 2px; padding-left: 15px; margin-bottom: 0;">
                         ${data.tembusan.map(t => `<li style="padding-left: 5px;">${t}</li>`).join('')}
                     </ol>
@@ -322,13 +331,12 @@ async function createPDFBuffer(data) {
         <img src="${foot}" class="footer-img">
         </body></html>`;
 
-        // MENJADI INI (LEBIH AMAN BUAT SERVER):
         const browser = await puppeteer.launch({ 
             headless: 'new', 
             args: [
                 '--no-sandbox', 
                 '--disable-setuid-sandbox', 
-                '--disable-dev-shm-usage', // Penting untuk container Railway
+                '--disable-dev-shm-usage',
                 '--disable-gpu'
             ] 
         });
@@ -422,7 +430,8 @@ app.post('/api/preview-pdf', async (req, res) => {
         if (mode_buat === 'upload' && upload_data) {
             const previewPdf = await stampPDF(upload_data.file_base64, {
                 nomor_surat: "Draft/Preview/...",
-                qr_data: "https://eoffice-mij-v3-production.up.railway.app/verify/PREVIEW",
+                // Pakai variabel APP_URL
+                qr_data: `${APP_URL}/verify/PREVIEW`, 
                 locations: upload_data.stamps,
                 render_width: upload_data.render_width,
                 lampiran: req.body.lampiran || []
