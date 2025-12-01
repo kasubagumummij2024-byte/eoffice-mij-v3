@@ -279,7 +279,7 @@ async function createPDFBuffer(data) {
         .date-flex { display: flex; justify-content: space-between; gap: 20px; }
 
         .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; } .meta-table td { vertical-align: top; padding: 1px 0; }
-        .content { text-align: justify; } .content p { margin: 0 0 6px 0; text-indent: 40px; } .content ol { margin: 0 0 6px 0; padding-left: 45px; }
+        .content { text-align: justify; } .content p { margin: 0 0 6px 0; text-indent: 0px; } .content ol { margin: 0 0 6px 0; padding-left: 45px; }
         table { border-collapse: collapse !important; border-spacing: 0; }
         .content table { width: 100% !important; margin: 10px 0; }
         .content table td, .content table th { padding: 4px; vertical-align: top; }
