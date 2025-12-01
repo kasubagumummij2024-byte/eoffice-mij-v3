@@ -1,0 +1,175 @@
+﻿NIP(Username);Nama Lengkap (Tanpa Gelar);Gelar Depan;Gelar Belakang;Jabatan Struktural (Asli);Unit Kerja (Homebase);Role Sistem;Akses Buat Surat (Pisahkan Koma)
+20230811478;Abdul Khoir;-;-;Pramubakti;IBS;User;TU&Umum
+20161012037;Abi Sofyan;-;S.Sos.I;Guru;MI;User;MI
+20160201245;Acep Supriatna;-;-;Keamanan;TU&Umum;User;TU&Umum
+20200701361;Achmad Sawaludin;-;S.Ak;Staf TU;KB;Super Admin Satdik;KB, TU&Umum, MIJ
+20090401060;Ade Muhamad Yusuf;-;M.Pd;Kepala Madrasah;MI;Approver;MI
+20121201134;Agus Wahyudi;-;M.Pd;Kasubag Umum;TU&Umum;User;MIJ, TU&Umum
+20230526393;Ahmad Baidhowi;-;S.Pd.I;Guru;MI;User;MI
+20150301204;Ahmad Gunawan;-;-;Pramubakti;TU&Umum;User;TU&Umum
+20230401389;Ahmad Nur K;-;S.Q., S.Sos., M.Pd;Guru;MTs;User;MTs
+20211001370;Ahmad Rizky;-;B.Sc., MA;Guru;MA;User;MA
+20250401450;Ahsanah Nur Amaliah Amar;-;B.A., M.A;Staf Penjamin Mutu;PM;User;PM
+20230301386;Akbar Muzaki Saputra;-;S.Pd;Guru;MI;User;MI
+20241101439;Alia Ramadania;-;-;Guru;RA;User;RA
+20191001324;Alifta Rosediana;-;S.Pd.I;Guru;MI;User;MI
+20160301247;Aly Nurdin;-;S.Pd;Staf Perlengkapan;TU&Umum;User;TU&Umum
+20131101150;Amalia Indah;-;S.Sos.I;Guru;RA;User;RA
+20240712425;Amarta Prayuti;-;S.Pd;Guru;MA;User;MA
+20161201270;Andi Wiwoko;-;-;Keamanan;TU&Umum;User;TU&Umum
+20240717431;Anggun Nurahmi;-;-;Guru;RA;User;RA
+20141001178;Anita Yuliandari;-;S.Pd;Guru;KB;User;KB
+20240115422;Ardhian Nrawang Cahyo;-;S.Pd;Guru;MI;User;MI
+20131101148;Asep Marpu;-;S.Pd.I;Kepala Madrasah;MA;Approver;MA
+20111008110;Ashy Simas;-;S.Pd;Guru;KB;User;KB
+20231026409;Athiyyah Al Habibah;-;S.Pd;Guru;MA;User;MA
+20120501115;Awan Karmawan;-;-;Pramubakti;TU&Umum;User;TU&Umum
+20110601102;Ayu Widuri;-;S.Pd;Guru;KB;User;KB
+20090501066;Beni Subarja;-;A.Md;Staf TU;MI;User;MI
+20111201112;Chaerul Anwar;-;-;Kepala Keamanan;TU&Umum;User;TU&Umum
+20251010465;Dedi;-;S.E;Pengemudi;TU&Umum;User;TU&Umum
+20230811477;Desti Kurnia Sari;-;Lc;Guru;IBS;User;IBS
+20140601172;Dina Mariyanti;-;S.Kom;Bendahara;MIJ;User;MIJ
+20210701369;Dina Putri Setyowati;-;M.Pd;Guru;MTs;User;MTs
+20191026280;Diyanningsih;-;S.Pd.I;Guru;MI;User;MI
+20230926406;Dwi Agustin;-;S.Pd;Guru;MA;User;MA
+20070801052;Edhi Prayitno;-;S.Kom., M.Si;Koordinator IT;KHK;User;KHK
+20121101120;Eka Ameliawati;-;S.Pd.I;Guru;MI;User;MI
+20230626402;Eka Sukmawati;-;-;Guru;RA;User;RA
+20101101091;Ema Mardiah;-;S.Pd;Kepala Madrasah;KB;Approver;KB
+20120701129;Epi Rosidah;-;S.Pd.I;Guru;MTs;User;MTs
+20180701261;Erly Sunjaningdyah;-;S.Pd;Guru;MI;User;MI
+20131101147;Erni Kurniasih;-;M.Pd;Guru;MTs;User;MTs
+20151007241;Eva Faujiah;-;S.Pd;Guru;RA;User;RA
+20201101364;Faishal Abdillah;-;S.Pd;Guru;MTs;User;MTs
+20201101365;Faizal Danny Sasetya;-;S.Pd;Wakabid Kesiswaan;MTs;User;MTs
+20170201262;Fajarani Fitriasih;-;S.Pd;Wakabid Kurikulum;MTs;User;MTs
+20150904220;Fandi Ahmad;-;S.E;Staf Keuangan;KHK;User;KHK
+20240104413;Fazakia Syifa Utami;-;S.Pd;Guru;MI;User;MI
+20170701124;Fera Deswita;-;S.Pd;Wakabid Kesiswaan;MA;User;MA
+20240201414;Galuh Surya Permana;-;S.Pd;Guru;RA;User;RA
+20200701359;Ginanjar;-;-;Pramubakti;TU&Umum;User;TU&Umum
+20221101377;Haerani Fitri Arumsyah;-;-;Guru;KB;User;KB
+20110601101;Hairul A.Hayad;-;S.H;Staf Perlengkapan;TU&Umum;User;TU&Umum
+20151101160;Harjiati;-;S.Kom;Guru;MTs;User;MTs
+20230526394;Hasby Alfadhail;-;S.Sos;Guru;MI;User;MI
+20180701296;Hawari Aulia;-;A.Md., A.B;Staf Humas;KHK;User;KHK
+20140601170;Hendri Hermawan;-;-;Pramubakti;MI;User;TU&Umum
+20191008344;Heri Iswanto;-;S.Pd.I;Guru;MA;User;MA
+20250201448;Hilman Alfarobi;-;S.A.P;Staf Administrasi Umum;MIJ;Super Admin Madrasah Istiqlal Jakarta;MIJ, TU&Umum
+20070402050;Hj. Rinawati;-;S.Pd.I., M.Ag;Guru;MI;User;MI
+20171001276;Husna Jalilah;-;S.Sy;Staf Bendahara;MIJ;User;MIJ
+20070402047;Ika Karmila;-;S.Pd.I;Guru;MI;User;MI
+20040517021;Ine Kurniah;-;S.Pd.I;Guru;RA;User;RA
+20040701024;Ira Eridani;-;S.E., M.Pd;Guru;MI;User;MI
+20181201316;Iwan Aprianto;-;S.Kom;Kasubag Kepegawaian;KHK;Super Admin Satdik;MIJ, KHK
+20090401058;Izzul Mubarokah;-;S.Pd;Wakabid Kurikulum;MI;User;MI
+20251010457;Jeje Fajar Saputra;-;S.Pd;Guru;MI;User;MI
+20121001130;Jenal Arifin;-;-;Maintenance;TU&Umum;User;TU&Umum
+20000701009;Kasmudi;-;M.Pd;Guru;MTs;User;MTs
+20090701069;Khaerul Amin;-;S.Pd;Wakabid Kesiswaan;MI;User;MI
+20090401061;Lailatul Badriyah;-;S.Pd;Guru;MI;User;MI
+20150901216;Lia Rosita;-;S.Pd;Guru;MTs;User;MTs
+20181001169;Lukman;-;M.Pd.I;Guru;MTs;User;MTs
+20191101349;Luthfiyah Nuur Janah;-;S.Kom;Staf TU;MI;Super Admin Satdik;MI, TU&Umum, MIJ
+20110201099;M. Rahman Winata Putra;H.;M.Pd;Guru;MI;User;MI
+20090401062;Mastiah;-;S.Pd;Guru;MI;User;MI
+20101012090;Medina Akmar;-;S.Pd;Guru;MI;User;MI
+20101101093;Mefi Dewi;-;S.Pd;Wakabid Kurikulum;KB;User;KB
+20251103467;Mia Rosmiati;-;-;Guru;KB;User;KB
+20181001310;Miftahul Jannah;-;S.Pd;Guru;MI;User;MI
+19990701004;Mila Maulina;-;S.Ag;Guru;MI;User;MI
+20211101375;Mochammad Taufiqurrahman;H.;S.Q., MA;Direktur;MIJ;Approver;MIJ
+20241104443;Moh Lutfi Hidayatul Haq;-;S.Sos;Staf Keuangan;KHK;User;KHK
+20110501100;Mohamat Ibrahim;-;S.Pd;Kepala Bagian;TU&Umum;Super Admin Global;KB, RA, MI, MTs, MA, IBS, PM, KHK, TU&Umum, MIJ
+20240801440;Mohammad Agung Satriya;-;M.Pd;Guru;MA;User;MA
+20201101363;Mohammad Rifki Haekal;-;S.H., M.Si;Guru;MI;User;MI
+20140401166;Momon Sulaeman;-;-;Keamanan;TU&Umum;User;TU&Umum
+20191026281;Muchdori ;H.;S.Pd.I;Guru;MA;User;MA
+20201101367;Muh Rifki Kurniawan;-;S.Pd;Guru;MTs;User;MTs
+20251010460;Muh. Nurhidayat;-;S.Pd;Guru;MTs;User;MTs
+20070402048;Muhamad Alwi;Dr.;M.Pd;Kepala Bagian;PM;Approver;PM
+20250201447;Muhamad Ridho Amin ;-;-;Pramubakti;RA;User;TU&Umum
+20150201201;Muhamad Syaefudin;-;-;Keamanan;TU&Umum;User;TU&Umum
+20220103372;Muhammad Dzul Qarnain;-;S.Pd;Guru;MTs;User;MTs
+20251010464;Muhammad Fadhil Rafif Arusydi;-;-;Pramubakti;MI;User;TU&Umum
+20220811382;Muhammad Fadlan Alifian;-;-;Pramubakti;KB;User;TU&Umum
+20190101323;Muhammad Najib Fahmi;-;M.Pd;Guru;MA;User;MA
+20230811475;Muhammad Nuralamsyah Putra B.;-;S.Q., S.Pd., M.Ag;Guru;IBS;User;IBS
+20230626400;Muhammad Nurullah Burhanuddin Robbani;-;S.Pd;Staf Humas;KHK;User;KHK
+20230426397;Muhammad Ra'uf Akbar;-;S.Kom;Staf TU;IBS;Super Admin Satdik;IBS, KHK, MIJ
+20090401065;Mulana;-;A.Md.Kom;Staf TU;MTs;Super Admin Satdik;MTs, TU&Umum, MIJ
+20251010459;Mulhimah Riyadoh;-;S.Pd;Guru;MTs;User;MTs
+20040201020;Musliatul Janah;-;-;Pramubakti;TU&Umum;User;TU&Umum
+20191001302;Nadia Zahra;-;A.Md.Kom;Staf Humas;KHK;User;KHK
+20240726426;Naili Afwillah;-;M.Pd;Guru;MA;User;MA
+20020101013;Nita Rosdewita;-;S.Pd;Guru;RA;User;RA
+20251010461;Nooroin Siti Mardlyyah;-;S.Pd;Guru;MA;User;MA
+20160101221;Nunung Nurhayati;-;S.Pd;Guru;MI;User;MI
+20180301293;Nur Hamdan;-;-;Pramubakti;MTs;User;TU&Umum
+20160701254;Nur Pajar;-;-;Keamanan;TU&Umum;User;TU&Umum
+20230811476;Nuraida Rahma Beyt;-;S.Pd;Guru;IBS;User;IBS
+20150801212;Nurbani Fitriah;-;S.Pd.I;Guru;KB;User;KB
+20230926405;Nurhasanah;-;S.Sos;Guru;MTs;User;MTs
+20240709429;Nurhasanah Galingging;-;-;Guru;IBS;User;IBS
+20070402051;Nurlaeli Agustiawati;-;S.Pd.I;Guru;MI;User;MI
+20230427398;Nurul Hatmy Rachmadhani Eka Putri;-;S.Ak;Staf Bendahara;MIJ;User;MIJ
+20181101163;Nuryanti;-;S.E., M.Pd;Kepala Madrasah;RA;Approver;RA
+20161101265;Nuzulia Ifdayati;-;S.Pd;Guru;MA;User;MA
+20230401392;Putri Malika Rohani;-;S.Pd;Guru;MI;User;MI
+20240426421;Rafi Andri Latif;-;-;Pramubakti;MA;User;TU&Umum
+20241101433;Rahma Qurrota Ainy;-;S.Ag;Guru;MI;User;MI
+20060801035;Ratih Puspa;-;S.Pd;Wakabid Kurikulum;RA;User;RA
+20250710462;Riko Eka Hadi Putra;-;S.Sn;Guru;MA;User;MA
+20221101378;Riska;-;S.Pd;Guru;MI;User;MI
+20181001307;Rita Zahara;-;S.Pd.I;Guru;RA;User;RA
+20240801441;Rizka Tiara Nursiva;-;S.Pd., Gr;Guru;MA;User;MA
+20191026300;Rizky Maulana;-;S.Pd.I;Guru;MI;User;MI
+20140901180;Rizky Zulkarnain;-;S.Pd.I;Guru;MI;User;MI
+20221101380;Rohadi;-;Lc;Guru;MA;User;MA
+20191010342;Rossa Junia Utami;-;S.Pd;Guru;MTs;User;MTs
+20180702064;Rusyanti;-;S.Kom., M.Pd;Guru;MA;User;MA
+20070309042;Sandita Sawietri A.P;-;-;Staf Logistik;TU&Umum;User;TU&Umum
+20150701214;Sarif Hidayat;-;S.Pd., M.Si;Staf TU;MA;Super Admin Satdik;MA, TU&Umum, MIJ
+20070402049;Sentioko;-;M.Pd;Guru;MI;User;MI
+20230406395;Septian Rahmawati;-;S.Pd;Guru;MA;User;MA
+20250801466;Shaiful;-;-;Penjaga Asrama;IBS;User;IBS
+20230810412;Sirajuddin Anhary;-;S.Pd;Wakabid Kurikulum;MA;User;MA
+20040517022;Siti Aisyah;-;S.Sos.I;Guru;RA;User;RA
+20110701103;Siti Baedatul Alawiyah;-;S.Pd.I., Gr;Guru;MI;User;MI
+20251010453;Siti Hardianti Soliha;-;S.Pd;Guru;KB;User;KB
+20020101014;Siti Julaeha;-;S.Pd.I;Guru;RA;User;RA
+20100608082;Siti Maryam;-;S.Pd.I;Guru;KB;User;KB
+20050704030;Siti Rahmah;-;S.Pd;Guru;RA;User;RA
+20100209075;Siti Rostaniarsih;-;S.Pd.SD;Guru;MI;User;MI
+20010920011;Siti Sundari;-;-;Staf TU;RA;Super Admin Satdik;RA, TU&Umum, MIJ
+20070910053;Slamet Supriadi;-;A.Md;Staf Penjamin Mutu;PM;Super Admin Satdik;PM, MIJ
+20121101119;Sofiyani;Hj.;S.Pd;Guru;KB;User;KB
+20130701145;Suci Ayu Hardiyanti;-;S.Pd;Kasubag Keuangan;KHK;User;MIJ, KHK
+20221130391;Sudarjo;-;-;Pengemudi;TU&Umum;User;TU&Umum
+20120801116;Sugiyarti;-;S.Pd;Kasubag Logistik dan Perlengkapan;TU&Umum;User;MIJ, TU&Umum
+20191026341;Sulthon Najib;-;M.Pd;Kasubag Humas;KHK;User;MIJ, KHK
+20070221040;Sundari;-;-;Staf Logistik;TU&Umum;User;TU&Umum
+20150406219;Suryani;-;-;Guru;RA;User;RA
+20181001312;Syahril Sidik;-;S.Ag;Kepala Madrasah;MTs;Approver;MTs
+20251103463;Syahrul Raygan Kazali;-;-;Keamanan;TU&Umum;User;TU&Umum
+20250201451;Syamsuri Maulana;-;Lc;Guru;IBS;User;IBS
+20191201335;Syifa Fauziah;-;S.Pd;Guru;RA;User;RA
+20230526399;Taat Suyono;-;-;Pengemudi;TU&Umum;User;TU&Umum
+20100301079;Tammy Sri Utami D;-;S.Sos;Guru;MI;User;MI
+20040801026;Taufik;-;S.H.I;Kepala Madrasah;IBS;Approver;IBS
+19990701008;Titin Sumarnih;-;S.Pd;Wakabid Kesiswaan;RA;User;RA
+20141001177;Titin Supriatin;-;S.Pd.I;Guru;KB;User;KB
+20230109396;Ulfa Agustiana;-;-;Guru;KB;User;KB
+20231026408;Vicky Ardilla Nugroho;-;S.Pd;Guru;MTs;User;MTs
+20241001442;Wifa Nidail Millah;-;S.H;Guru;MTs;User;MTs
+20101012089;Wiwik Anggraeni;-;S.Pd;Guru;MI;User;MI
+20110901108;Woro Armayanti;-;S.Pd;Guru;MI;User;MI
+20181001306;Yodi;-;M.Pd;Guru;MA;User;MA
+20240207417;Yogi Ahmad Nugroho;-;S.Pd;Guru;MI;User;MI
+20101001086;Yuliatun;-;S.Pd;Guru;MI;User;MI
+20090401057;Yulisa Kuncarani;-;S.Pd;Guru;MI;User;MI
+20200701360;Yunia Nurhalimatusyadiah;-;S.Ag;Guru;MTs;User;MTs
+20160102252;Zainal Pahmi;-;M.Pd;Guru;MTs;User;MTs
+20070402046;Zatiah Lesyani;-;M.Pd;Kepala Bagian;KHK;Approver;KHK
+20231026407;Zulkifli Abd. Rahim;-;Lc;Guru;MA;User;MA

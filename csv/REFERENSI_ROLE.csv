@@ -1,0 +1,6 @@
+﻿Kode Role;Deskripsi Hak Akses
+User;Guru/Staf biasa. Hanya bisa buat surat (Maker) & lihat surat miliknya sendiri.
+Approver;"Pejabat. Punya menu khusus ""Tanda Tangan Surat"". Bisa melihat surat yang ditujukan padanya."
+Super Admin Satdik;(Contoh: Ibu Luthfiyah). Bisa melihat seluruh arsip surat di Unit Kerjanya (Homebase).
+Super Admin Madrasah Istiqlal Jakarta;"(Contoh: Hilman). Bisa melihat seluruh arsip surat berkode ""MIJ""."
+Super Admin Global;(Contoh: Pak Ibrahim). Bisa melihat SEMUA surat dari SEMUA Unit.

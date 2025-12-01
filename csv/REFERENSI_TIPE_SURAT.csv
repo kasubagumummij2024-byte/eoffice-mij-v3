@@ -1,0 +1,19 @@
+﻿Kode Tipe (ID Database);Nama Tipe Surat (Untuk Dropdown);Format Kode Penomoran;Apakah Reset per Tahun?;Keterangan
+ba;Berita Acara;BA;Ya;-
+nd;Nota Dinas;ND;Ya;-
+pan;Surat Kepanitiaan;Pan.[KodeKegiatan];Ya;Butuh Kode Kegiatan
+sk;Surat Keputusan;SK;Ya;-
+suket;Surat Keterangan;Suket;Ya;-
+sku;Surat Kuasa;Sku;Ya;-
+spa;Surat Pengantar;Spa;Ya;-
+peng;Surat Pengumuman;Peng;Ya;-
+SP;Surat Peringatan;SP;Ya;-
+spk;Surat Perintah Kerja;SPK;Ya;-
+sppd;Surat Perintah Perjalanan Dinas;SPPD;Ya;-
+mou;Surat Perjanjian Kerjasama;MoU;Ya;-
+spm;Surat Permohonan;SPm;Ya;-
+spn;Surat Pernyataan;SPn;Ya;-
+spj;Surat Pertanggungjawaban;SPJ;Ya;-
+sr;Surat Rekomendasi;SR;Ya;-
+st;Surat Tugas;ST;Ya;-
+und;Surat Undangan;Und;Ya;-

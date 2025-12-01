@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: 'Times New Roman', Times, serif;
+            font-size: 12pt;
+            line-height: 1.15;
+            margin: 0;
+            padding: 0;
+            color: #000;
+        }
+        .container {
+            width: 100%;
+            padding: 0 10px; /* Padding kiri-kanan */
+        }
+        /* KOP SURAT */
+        .header {
+            width: 100%;
+            text-align: center;
+            border-bottom: 3px double #000;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+        }
+        .header img {
+            width: 100%;
+            max-height: 150px;
+            object-fit: contain;
+        }
+        /* TANGGAL SURAT (KANAN ATAS) */
+        .date-section {
+            text-align: right;
+            margin-bottom: 5px;
+            margin-right: 0px;
+        }
+        /* INFO SURAT (NOMOR, LAMPIRAN, HAL) */
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .info-table td {
+            vertical-align: top;
+            padding: 1px 0;
+        }
+        /* ISI SURAT */
+        .content {
+            text-align: justify;
+            min-height: 200px;
+            margin-bottom: 20px;
+        }
+        .content p {
+            margin-top: 0;
+            margin-bottom: 8px;
+            text-indent: 40px; /* Paragraf menjorok */
+        }
+        .content ol, .content ul {
+            margin-top: 0;
+            margin-bottom: 8px;
+            padding-left: 45px;
+        }
+        /* FOOTER (TEMBUSAN & TTD) */
+        .footer-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            page-break-inside: avoid; /* Jangan terpotong halaman */
+        }
+        .footer-table td {
+            vertical-align: top;
+        }
+        .ttd-container {
+            text-align: center;
+            padding-left: 30px;
+        }
+        .draft-box {
+            width: 150px;
+            height: 80px;
+            border: 2px dashed #ccc;
+            margin: 10px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            font-size: 10pt;
+            font-weight: bold;
+        }
+        .qr-code {
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
+            margin: 5px auto;
+        }
+        .tembusan {
+            font-size: 10pt;
+            margin-top: 20px;
+        }
+        .tembusan ol {
+            padding-left: 20px;
+            margin-top: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <img src="{{kop}}" alt="Kop Surat">
+    </div>
+
+    <div class="container">
+        <div class="date-section">
+            Jakarta, {{tgl_masehi}}
+        </div>
+
+        <table class="info-table">
+            <tr>
+                <td style="width: 80px;">Nomor</td>
+                <td style="width: 10px;">:</td>
+                <td>{{nomor_surat}}</td>
+            </tr>
+            <tr>
+                <td>Lampiran</td>
+                <td>:</td>
+                <td>-</td>
+            </tr>
+            <tr>
+                <td>Perihal</td>
+                <td>:</td>
+                <td><b>{{perihal}}</b></td>
+            </tr>
+        </table>
+
+        <div style="margin-bottom: 20px;">
+            Kepada Yth.<br/>
+            <b>{{tujuan_jabatan}}</b><br/>
+            {{tujuan_nama}}<br/>
+            di Tempat
+        </div>
+
+        <div class="content">
+            {{{isi_html}}}
+        </div>
+
+        <table class="footer-table">
+            <tr>
+                <td style="width: 50%;">
+                    {{#if tembusan}}
+                    <div class="tembusan">
+                        <u style="font-weight: bold;">Tembusan:</u>
+                        <ol>
+                            {{#each tembusan}}
+                                <li>{{this}}</li>
+                            {{/each}}
+                        </ol>
+                    </div>
+                    {{/if}}
+                </td>
+
+                <td style="width: 50%;">
+                    <div class="ttd-container">
+                        <div style="margin-bottom: 5px;">Hormat Kami,</div>
+                        <div style="font-weight: bold; margin-bottom: 10px;">{{jabatan_approver}}</div>
+
+                        {{#if is_approved}}
+                            {{#if qr_base64}}
+                                <img src="{{qr_base64}}" class="qr-code">
+                            {{else}}
+                                <br/><br/><br/>
+                            {{/if}}
+                        {{else}}
+                            <div class="draft-box">DRAFT TTD</div>
+                        {{/if}}
+
+                        <div style="font-weight: bold; text-decoration: underline; margin-top: 5px;">
+                            {{nama_approver}}
+                        </div>
+                        {{#if nip_approver}}
+                        <div>NIP. {{nip_approver}}</div>
+                        {{/if}}
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <div style="position: fixed; bottom: 0; left: 0; width: 100%; text-align: center;">
+        <img src="{{footer}}" style="width: 100%; max-height: 80px;">
+    </div>
+</body>
+</html>
