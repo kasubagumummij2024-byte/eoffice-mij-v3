@@ -193,7 +193,7 @@ async function createPDFBuffer(data) {
     if (data.mode_buat === 'upload' && data.uploaded_file_base64) {
         const isApproved = data.status_global === 'APPROVED';
         const nomorSurat = isApproved ? data.nomor_surat : "Draft/......../........";
-        const qrLink = isApproved ? `https://eoffice.mij.sch.id/verify/${data.id_surat}` : 'PREVIEW_QR';
+        const qrLink = isApproved ? `https://eoffice-mij-v3-production.up.railway.app/${data.id_surat}` : 'PREVIEW_QR';
         
         return await stampPDF(data.uploaded_file_base64, {
             nomor_surat: nomorSurat,
