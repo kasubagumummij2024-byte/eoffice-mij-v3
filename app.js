@@ -701,9 +701,9 @@ app.get('/api/public/verify/:id', async (req, res) => {
 app.use(express.static(path.join(__dirname, 'public_html')));
 
 // 2. Handle React Router (Agar saat di-refresh tidak 404)
-app.get('*', (req, res) => {
-    res.sendFile(path.resolve(__dirname, 'public_html', 'index.html'));
-});
+app.get(/.*/, (req, res) => { 
+        res.sendFile(path.resolve(__dirname, 'public_html', 'index.html'));
+    });
 
 // Jalankan Server (Gunakan process.env.PORT untuk Railway)
 const PORT = process.env.PORT || 3000;
