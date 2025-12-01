@@ -211,7 +211,7 @@ async function createPDFBuffer(data) {
         const isApproved = data.status_global === 'APPROVED';
         let qrBase64 = null;
         if (isApproved) {
-            const info = `https://eoffice.mij.sch.id/verify/${data.id_surat}`;
+            const info = `https://eoffice-mij-v3-production.up.railway.app/verify/${data.id_surat}`;
             try {
                 const canvasSize = 200;
                 const canvas = createCanvas(canvasSize, canvasSize);
@@ -422,7 +422,7 @@ app.post('/api/preview-pdf', async (req, res) => {
         if (mode_buat === 'upload' && upload_data) {
             const previewPdf = await stampPDF(upload_data.file_base64, {
                 nomor_surat: "Draft/Preview/...",
-                qr_data: "https://eoffice.mij.sch.id/verify/PREVIEW",
+                qr_data: "https://eoffice-mij-v3-production.up.railway.app/verify/PREVIEW",
                 locations: upload_data.stamps,
                 render_width: upload_data.render_width,
                 lampiran: req.body.lampiran || []
