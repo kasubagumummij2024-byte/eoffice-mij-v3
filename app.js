@@ -226,7 +226,7 @@ async function createPDFBuffer(data) {
         let tembusanHtml = '';
         if (data.tembusan && data.tembusan.length > 0) {
             tembusanHtml = `
-            <div style="margin-top: 9em; font-size: inherit;">
+            <div style="margin-top: 7em; font-size: inherit;">
                 <b style="text-decoration: underline;">Tembusan:</b>
                 <ol style="margin-top: 0.2em; padding-left: 20px; margin-bottom: 0;">
                     ${data.tembusan.map(t => `<li style="padding-left: 5px;">${t}</li>`).join('')}
