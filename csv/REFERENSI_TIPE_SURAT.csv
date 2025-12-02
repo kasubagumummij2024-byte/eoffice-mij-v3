@@ -1,7 +1,6 @@
 ﻿Kode Tipe (ID Database);Nama Tipe Surat (Untuk Dropdown);Format Kode Penomoran;Apakah Reset per Tahun?;Keterangan
 ba;Berita Acara;BA;Ya;-
 nd;Nota Dinas;ND;Ya;-
-pan;Surat Kepanitiaan;Pan.[KodeKegiatan];Ya;Butuh Kode Kegiatan
 sk;Surat Keputusan;SK;Ya;-
 suket;Surat Keterangan;Suket;Ya;-
 sku;Surat Kuasa;Sku;Ya;-

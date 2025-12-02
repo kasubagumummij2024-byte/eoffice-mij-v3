@@ -189,185 +189,286 @@ async function stampPDF(originalPdfBase64, stampData) {
     }
 }
 
-// === MAIN PDF GENERATOR (FIX URL QR CODE) ===
+// === CORE PDF GENERATOR (REVISI CSS: TABLE & SPACING) ===
 async function createPDFBuffer(data) {
-    
-    // A. JIKA MODE UPLOAD
+    // 1. Jika Mode Upload (Skip, logika sama)
     if (data.mode_buat === 'upload' && data.uploaded_file_base64) {
-        const isApproved = data.status_global === 'APPROVED';
-        const nomorSurat = isApproved ? data.nomor_surat : "Draft/......../........";
-        
-        // REVISI DISINI: Tambahkan '/verify/' agar link valid
-        const qrLink = isApproved ? `${APP_URL}/verify/${data.id_surat}` : 'PREVIEW_QR';
-        
         return await stampPDF(data.uploaded_file_base64, {
-            nomor_surat: nomorSurat,
-            qr_data: qrLink,
+            nomor_surat: data.status_global === 'APPROVED' ? data.nomor_surat : "Draft/......../........",
+            qr_data: data.status_global === 'APPROVED' ? `${APP_URL}/verify/${data.id_surat}` : 'PREVIEW_QR',
             locations: data.stamp_locations || [],
             lampiran: data.lampiran || [],
             render_width: data.render_width || 600
         });
     }
 
-    // B. JIKA MODE WEB
+    // 2. Mode Web Editor
     try {
         const kop = imgToBase64('src/assets/Kop_Surat_Resmi.png');
         const foot = imgToBase64('src/assets/Footer_Surat.png');
-        
         const isApproved = data.status_global === 'APPROVED';
+
+        // --- Persiapan Data ---
         let qrBase64 = null;
-        
         if (isApproved) {
-            // Ini sudah benar, menggunakan /verify/
             const info = `${APP_URL}/verify/${data.id_surat}`;
-            
-            try {
-                const canvasSize = 200;
-                const canvas = createCanvas(canvasSize, canvasSize);
-                await QRCode.toCanvas(canvas, info, { width: canvasSize, margin: 1, errorCorrectionLevel: 'H' });
-                const logoPath = path.resolve(__dirname, 'src/assets/logo-mij.png');
-                if (fs.existsSync(logoPath)) {
-                     const ctx = canvas.getContext('2d');
-                     const logoImg = await loadImage(logoPath);
-                     const logoSize = canvasSize * 0.23;
-                     const logoPos = (canvasSize - logoSize) / 2;
-                     ctx.fillStyle = '#ffffff';
-                     ctx.fillRect(logoPos - 3, logoPos - 3, logoSize + 6, logoSize + 6);
-                     ctx.drawImage(logoImg, logoPos, logoPos, logoSize, logoSize);
-                }
-                qrBase64 = canvas.toDataURL();
-            } catch (e) { qrBase64 = await QRCode.toDataURL(info, { width: 120, margin: 1 }); }
+            qrBase64 = await QRCode.toDataURL(info, { width: 120, margin: 1, errorCorrectionLevel: 'H' });
         }
 
         let dateSrc = new Date();
-        if (isApproved && data.approver?.ttd_date) {
-            dateSrc = new Date(data.approver.ttd_date._seconds * 1000);
-        }
+        if (isApproved && data.approver?.ttd_date) dateSrc = new Date(data.approver.ttd_date._seconds * 1000);
         const tglMasehiParts = getMasehiParts(dateSrc);
         const tglHijriParts = getHijriParts(dateSrc);
 
         const nomorSurat = isApproved ? data.nomor_surat : "Draft/......../........";
         const lampiranText = (data.lampiran && data.lampiran.length > 0) ? "1 (satu) Berkas" : "-";
-
+        
         let tembusanHtml = '';
         if (data.tembusan && data.tembusan.length > 0) {
             tembusanHtml = `
-                <div style="height: 125px;"></div> 
-                <div style="text-align: left;">
-                    <b style="text-decoration: underline;">Tembusan:</b>
-                    <ol style="margin-top: 2px; padding-left: 15px; margin-bottom: 0;">
-                        ${data.tembusan.map(t => `<li style="padding-left: 5px;">${t}</li>`).join('')}
-                    </ol>
-                </div>`;
+            <div style="margin-top: 9em; font-size: inherit;">
+                <b style="text-decoration: underline;">Tembusan:</b>
+                <ol style="margin-top: 0.2em; padding-left: 20px; margin-bottom: 0;">
+                    ${data.tembusan.map(t => `<li style="padding-left: 5px;">${t}</li>`).join('')}
+                </ol>
+            </div>`;
         }
 
-        let ttdVisual = '';
-        if (isApproved && qrBase64) {
-            ttdVisual = `<img src="${qrBase64}" style="width: 80px; height: 80px;">`;
-        } else {
-            ttdVisual = `<div style="width: 100px; height: 60px; border: 2px dashed #ccc; margin: 0 auto; display: flex; align-items: center; justify-content: center; color: #ccc; font-size: 9pt; font-weight: bold;">DRAFT TTD</div>`;
-        }
+        let ttdVisual = isApproved && qrBase64 
+            ? `<img src="${qrBase64}" style="width: 80px; height: 80px;">` 
+            : `<div style="width: 100px; height: 60px; border: 2px dashed #999; display: flex; align-items: center; justify-content: center; color: #999; font-size: 0.8em; font-weight: bold;">DRAFT TTD</div>`;
 
-        const htmlContent = `<!DOCTYPE html><html><head><style>
-        /* Default Font 12pt untuk seluruh Body */
-        @page { size: 215mm 330mm; margin: 0; } body { font-family: 'Trebuchet MS', sans-serif; font-size: 12pt; margin: 0; padding: 0; }
-        .page-content { padding: 5px 25mm 30mm 25mm; } .header-img { width: 100%; margin-bottom: 5px; }
-        
-        .date-table { float: right; border-collapse: collapse; margin-bottom: 15px; } 
-        .date-table td { padding: 0; vertical-align: top; }
-        .hijri-row-cell { border-bottom: 1px solid #000; padding-bottom: 1px; margin-bottom: 1px; }
-        .date-flex { display: flex; justify-content: space-between; gap: 20px; }
+        // --- HTML & CSS PERBAIKAN ---
+        const htmlContent = `<!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                /* 1. GLOBAL RESET (Mencegah Font Berantakan) */
+                * {
+                    font-family: 'Trebuchet MS', sans-serif !important;
+                    box-sizing: border-box;
+                }
+                
+                @page { size: 215mm 330mm; margin: 0; }
 
-        .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; } .meta-table td { vertical-align: top; padding: 1px 0; }
-        .content { text-align: justify; } .content p { margin: 0 0 6px 0; text-indent: 0px; } .content ol { margin: 0 0 6px 0; padding-left: 45px; }
-        table { border-collapse: collapse !important; border-spacing: 0; }
-        .content table { width: 100% !important; margin: 10px 0; }
-        .content table td, .content table th { padding: 4px; vertical-align: top; }
-        .signature-wrapper { margin-top: 20px; page-break-inside: avoid; } .signature-table { width: 100%; border: none; }
-        .ttd-box { text-align: center; padding-left: 10px; } .ttd-space { height: 85px; display: flex; align-items: center; justify-content: center; margin: 2px 0; }
-        .footer-img { position: fixed; bottom: 0; left: 0; width: 100%; z-index: -10; }
-        </style></head><body>
-        <img src="${kop}" class="header-img">
-        <div class="page-content">
-            <div style="overflow: hidden;">
-                <table class="date-table">
-                    <tr>
-                        <td rowspan="2" style="padding-right:5px; padding-top: 2px;">Jakarta, </td>
-                        <td class="hijri-row-cell">
-                            <div class="date-flex">
-                                <span>${tglHijriParts.dateStr}</span>
-                                <span>${tglHijriParts.yearStr}</span>
-                            </div>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>
-                            <div class="date-flex">
-                                <span>${tglMasehiParts.dateStr}</span>
-                                <span>${tglMasehiParts.yearStr}</span>
-                            </div>
-                        </td>
-                    </tr>
+                body {
+                    margin: 0; padding: 0;
+                    font-size: 12pt; 
+                    line-height: 1.35; /* AGAR TIDAK TERLALU RENGGANG */
+                    color: #000;
+                    background: #fff;
+                }
+
+                .page-content {
+                    /* Padding Kiri/Kanan 25mm, Bawah 35mm (space footer) */
+                    padding: 5px 25mm 35mm 25mm; 
+                    position: relative;
+                    z-index: 10;
+                }
+
+                .header-img { width: 100%; display: block; margin-bottom: 0; }
+                .footer-img { position: fixed; bottom: 0; left: 0; width: 100%; z-index: -10; }
+
+                /* 2. STYLE UNTUK ISI SURAT (Spacing Paragraf) */
+                .content { 
+                    text-align: justify; 
+                    font-size: inherit; 
+                    width: 100%; 
+                }
+                
+                /* Reset heading/span dari editor agar tidak besar sendiri */
+                .content h1, .content h2, .content h3, .content h4, .content span, .content div {
+                    font-size: inherit !important;
+                    font-weight: normal;
+                    margin: 0;
+                    line-height: inherit;
+                }
+                .content b, .content strong { font-weight: bold; }
+
+                /* PERBAIKAN SPASI PARAGRAF */
+                .content p { 
+                    margin-top: 0;
+                    margin-bottom: 0.6em; /* Jarak antar paragraf diperkecil (sebelumnya 1em) */
+                    text-indent: 0px; 
+                    line-height: inherit; 
+                }
+                .content ol, .content ul { margin: 0 0 0.6em 0; padding-left: 35px; }
+                
+                /* 3. PERBAIKAN TABEL (AGAR TITIK DUA TIDAK JAUH) */
+                .content table { 
+                    width: 100% !important; 
+                    margin: 0.5em 0; 
+                    border-collapse: collapse; 
+                    font-size: inherit; 
+                }
+                .content table td { 
+                    padding: 2px 4px; 
+                    vertical-align: top; 
+                    border: none; /* Default tanpa border untuk layout agenda */
+                }
+                
+                /* TRIK CSS: Membatasi lebar kolom pertama (Label Hari/Tanggal) */
+                /* Ini akan memaksa titik dua (:) mendekat ke kiri */
+                .content table tr td:first-child {
+                    width: 50px; /* Lebar fix untuk label */
+                    white-space: nowrap; /* Jangan biarkan label turun baris */
+                }
+                /* Jika user pakai border di editor, class ini akan menangani */
+                .content table[border="1"] td { border: 1px solid #000; }
+
+                /* HEADER TANGGAL (Rata Kanan) */
+                .date-table { float: right; border-collapse: collapse; margin-bottom: 0.5em; font-size: inherit; }
+                .date-table td { padding: 0; vertical-align: top; text-align: right; font-size: inherit; }
+                .hijri-row { border-bottom: 1px solid #000; padding-bottom: 0px; margin-bottom: 0px; display: inline-block; min-width: 120px; }
+
+                /* META DATA (Nomor, Lampiran) */
+                .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 1.2em; font-size: inherit; }
+                .meta-table td { vertical-align: top; padding: 0px 0; font-size: inherit; }
+
+                /* TANDA TANGAN */
+                .signature-wrapper { margin-top: 2em; page-break-inside: avoid; width: 100%; font-size: inherit; }
+                .signature-table { width: 100%; border: none; font-size: inherit; }
+                .ttd-col { text-align: center; padding-left: 10px; }
+                .ttd-space { height: 5.5em; display: flex; align-items: center; justify-content: center; }
+
+                .clearfix::after { content: ""; clear: both; display: table; }
+            </style>
+        </head>
+        <body>
+            <img src="${kop}" class="header-img">
+            
+            <div class="page-content">
+                <div class="clearfix">
+                    <table class="date-table">
+                        <tr>
+                            <td rowspan="2" style="padding-right: 10px; vertical-align: top;">Jakarta, </td>
+                            <td>
+                                <div class="hijri-row">
+                                    <span style="float:left;">${tglHijriParts.dateStr}</span>
+                                    <span style="float:right;">${tglHijriParts.yearStr}</span>
+                                    <div style="clear:both;"></div>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div style="min-width: 120px;">
+                                    <span style="float:left;">${tglMasehiParts.dateStr}</span>
+                                    <span style="float:right;">${tglMasehiParts.yearStr}</span>
+                                    <div style="clear:both;"></div>
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+
+                <table class="meta-table">
+                    <tr><td style="width:90px;">Nomor</td><td style="width:10px;">:</td><td>${nomorSurat}</td></tr>
+                    <tr><td>Lampiran</td><td>:</td><td>${lampiranText}</td></tr>
+                    <tr><td>Perihal</td><td>:</td><td style="font-weight:bold;">${data.perihal}</td></tr>
                 </table>
-            </div>
-            <div style="clear:both;"></div>
 
-            <table class="meta-table"><tr><td style="width:80px;">Nomor</td><td style="width:10px;">:</td><td>${nomorSurat}</td></tr><tr><td>Lampiran</td><td>:</td><td>${lampiranText}</td></tr><tr><td>Perihal</td><td>:</td><td style="font-weight:bold;">${data.perihal}</td></tr></table>
-            <div style="margin-bottom:15px;">Kepada Yth.<br/><b>${data.tujuan_jabatan||''}</b><br/>${data.tujuan_nama||''}<br/>di Tempat</div>
-            <div class="content">${data.isi_ringkas||''}</div>
-            <div class="signature-wrapper"><table class="signature-table"><tr>
-                <td style="width:50%; vertical-align:top; padding-right:10px;">${tembusanHtml}</td>
-                <td style="width:50%; vertical-align:top;">
-                    <div class="ttd-box">
-                        <div>Hormat Kami,</div>
-                        <div style="font-weight:bold; margin-bottom:5px;">${data.approver?.jabatan||'Pejabat'}</div>
-                        <div class="ttd-space">${ttdVisual}</div>
-                        <div style="font-weight:bold; text-decoration:underline;">${data.approver?.nama||'Nama'}</div>
-                        <div>NIP. ${data.approver?.nip||'-'}</div>
-                    </div>
-                </td>
-            </tr></table></div>
-        </div>
-        <img src="${foot}" class="footer-img">
-        </body></html>`;
+                <div style="margin-bottom: 1.2em;">
+                    Kepada Yth.<br/>
+                    <b>${data.tujuan_jabatan||''}</b><br/>
+                    ${data.tujuan_nama||''}<br/>
+                    di Tempat
+                </div>
+
+                <div class="content">
+                    ${data.isi_ringkas||''}
+                </div>
+
+                <div class="signature-wrapper">
+                    <table class="signature-table">
+                        <tr>
+                            <td style="width:50%; vertical-align:top; padding-right:15px;">
+                                ${tembusanHtml}
+                            </td>
+                            <td style="width:50%; vertical-align:top;">
+                                <div class="ttd-col">
+                                    <div>Hormat Kami,</div>
+                                    <div style="font-weight:bold; margin-bottom:0.2em;">${data.approver?.jabatan||'Pejabat'}</div>
+                                    <div class="ttd-space">${ttdVisual}</div>
+                                    <div style="font-weight:bold; text-decoration:underline;">${data.approver?.nama||'Nama'}</div>
+                                    <div>NIP. ${data.approver?.nip||'-'}</div>
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            
+            <img src="${foot}" class="footer-img">
+        </body>
+        </html>`;
 
         const browser = await puppeteer.launch({ 
             headless: 'new', 
-            args: [
-                '--no-sandbox', 
-                '--disable-setuid-sandbox', 
-                '--disable-dev-shm-usage',
-                '--disable-gpu'
-            ] 
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'] 
         });
         const page = await browser.newPage();
         await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+
+        // --- LOGIKA FIT TO PAGE (SMART RESIZE) ---
         await page.evaluate(() => {
-             const content = document.body; const SAFE_HEIGHT=1150; let fontSize=12;
-             while(content.scrollHeight>SAFE_HEIGHT && fontSize>8){ fontSize-=0.5; content.style.fontSize=fontSize+'pt'; document.querySelectorAll('table').forEach(t=>t.style.fontSize=fontSize+'pt'); }
-        });
-        const mainPdfUint8Array = await page.pdf({ width: '215mm', height: '330mm', printBackground: true, margin: {top:0,right:0,bottom:0,left:0} });
-        await browser.close();
-        
-        if (data.lampiran && data.lampiran.length > 0) {
-            const mergedPdf = await PDFDocument.load(mainPdfUint8Array);
-            for (const att of data.lampiran) {
-                let rawString = (typeof att === 'object' && att.data) ? att.data : att;
-                if (typeof rawString === 'string' && rawString.includes('base64,')) {
-                    try {
-                        const pdfData = rawString.split('base64,')[1];
-                        const attPdf = await PDFDocument.load(Buffer.from(pdfData, 'base64'));
-                        const copied = await mergedPdf.copyPages(attPdf, attPdf.getPageIndices());
-                        copied.forEach(p => mergedPdf.addPage(p));
-                    } catch(e) { console.error("Gagal merge 1 lampiran:", e.message); }
+            const body = document.body;
+            // Tinggi Area Aman (F4 - Header - Footer - Margin Error)
+            const MAX_HEIGHT = 1180; 
+            
+            let currentSize = 12; // Start 12pt
+            const minSize = 9;    // Mentok 9pt
+
+            const isOverflow = () => body.scrollHeight > MAX_HEIGHT;
+
+            // Loop Resize
+            while (isOverflow() && currentSize > minSize) {
+                currentSize -= 0.5; // Turun per 0.5pt
+                body.style.fontSize = currentSize + 'pt';
+
+                // Tweak Line Height agar makin rapat saat font kecil
+                if (currentSize < 10) {
+                    body.style.lineHeight = '1.25';
+                } else if (currentSize < 11) {
+                    body.style.lineHeight = '1.3';
+                } else {
+                    body.style.lineHeight = '1.35';
                 }
+            }
+        });
+
+        const pdfBuffer = await page.pdf({ 
+            width: '215mm', 
+            height: '330mm', 
+            printBackground: true, 
+            margin: { top:0, right:0, bottom:0, left:0 } 
+        });
+
+        await browser.close();
+
+        // Merge Lampiran (Jika ada)
+        if (data.lampiran && data.lampiran.length > 0) {
+            const mergedPdf = await PDFDocument.load(pdfBuffer);
+            for (const att of data.lampiran) {
+                try {
+                    let raw = (typeof att === 'object' && att.data) ? att.data : att;
+                    if (raw && raw.includes('base64,')) {
+                         const attBuf = Buffer.from(raw.split('base64,')[1], 'base64');
+                         const attPdf = await PDFDocument.load(attBuf);
+                         const pages = await mergedPdf.copyPages(attPdf, attPdf.getPageIndices());
+                         pages.forEach(p => mergedPdf.addPage(p));
+                    }
+                } catch(e) {}
             }
             return Buffer.from(await mergedPdf.save());
         }
 
-        return Buffer.from(mainPdfUint8Array);
+        return Buffer.from(pdfBuffer);
 
-    } catch (error) { console.error("CreatePDF Error:", error); throw error; }
+    } catch (e) {
+        console.error("CreatePDF Error:", e);
+        throw e;
+    }
 }
 
 // === ROUTES ===
@@ -647,15 +748,37 @@ app.post('/api/approve', async (req, res) => {
             let nextNo = 1;
             if (cDoc.exists) nextNo = cDoc.data().last_number + 1;
             t.set(counterRef, { last_number: nextNo }, { merge: true });
+            
             const typeDoc = await db.collection('letter_types').doc(data.tipe_surat).get();
             let format = "NOCODE";
             if(typeDoc.exists) {
                 const td = typeDoc.data();
                 format = td.format || td.format_code;
+                // Jika tipe surat butuh kegiatan, timpa format dengan kode kegiatan (jika ada)
                 if(td.need_activity || td.need_activity_code) format = `Pan.${data.kode_kegiatan}`;
-            } else if (data.tipe_surat === 'manual') { format = data.manual_kode; }
-            const suffix = (data.unit_kop === 'MIJ') ? '' : '/MIJ';
-            finalNomor = `${String(nextNo).padStart(3,'0')}/${format}/${data.unit_kop}${suffix}/${toRoman(now.getMonth()+1)}/${now.getFullYear()}`;
+            } else if (data.tipe_surat === 'manual') { 
+                format = data.manual_kode; 
+            }
+
+            // === REVISI LOGIKA PANITIA ===
+            // Jika user mengisi Kode Panitia manual, sisipkan 'Pan.'
+            let panitiaPart = "";
+            if (data.kode_panitia && data.kode_panitia.trim() !== "") {
+                panitiaPart = `/Pan.${data.kode_panitia.trim()}`;
+            }
+
+            // === LOGIKA UNIT ===
+            // Jika MIJ: kosong (nanti digabung di akhir). Jika Unit lain: /KB, /MTs, dll
+            let unitPart = (data.unit_kop === 'MIJ') ? '' : `/${data.unit_kop}`;
+            
+            // Format Akhir: No/KodeSurat[/Pan.XXX][/Unit]/MIJ/Bulan/Tahun
+            // Contoh Unit: 001/SK/Pan.HGN/KB/MIJ/XI/2025
+            // Contoh MIJ:  001/SK/Pan.HGN/MIJ/XI/2025
+            
+            const romawi = toRoman(now.getMonth()+1);
+            const tahun = now.getFullYear();
+            
+            finalNomor = `${String(nextNo).padStart(3,'0')}/${format}${panitiaPart}${unitPart}/MIJ/${romawi}/${tahun}`;
         });
         await ref.update({ status_global: 'APPROVED', 'approver.status': 'APPROVED', 'approver.ttd_date': admin.firestore.FieldValue.serverTimestamp(), nomor_surat: finalNomor, revision_note: admin.firestore.FieldValue.delete() });
         res.json({ success: true, nomor: finalNomor });
