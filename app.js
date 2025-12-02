@@ -100,7 +100,7 @@ const imgToBase64 = (relativePath) => {
     } catch (e) { return null; }
 };
 
-// === FUNGSI STAMPING ===
+// === 1. FUNGSI STAMPING (FIX LOGO PATH) ===
 async function stampPDF(originalPdfBase64, stampData) {
     const cleanBase64 = (str) => {
         if (!str || typeof str !== 'string') return null;
@@ -122,16 +122,27 @@ async function stampPDF(originalPdfBase64, stampData) {
                 const canvasSize = 300; 
                 const canvas = createCanvas(canvasSize, canvasSize);
                 await QRCode.toCanvas(canvas, qr_data, { width: canvasSize, margin: 1, errorCorrectionLevel: 'H' });
-                const logoPath = path.resolve(__dirname, 'src/assets/logo-mij.png');
+                
+                // === REVISI PATH LOGO ===
+                const logoPath = path.join(__dirname, 'src', 'assets', 'logo-mij.png');
+                console.log("Mencari logo di (Stamp Mode):", logoPath); // Cek Logs Railway nanti
+
                 if (fs.existsSync(logoPath)) {
                     const ctx = canvas.getContext('2d');
                     const logoImg = await loadImage(logoPath);
                     const logoSize = canvasSize * 0.23;
                     const logoPos = (canvasSize - logoSize) / 2;
+                    
+                    // Gambar Kotak Putih Background Logo
                     ctx.fillStyle = '#ffffff';
                     ctx.fillRect(logoPos - 3, logoPos - 3, logoSize + 6, logoSize + 6);
+                    
+                    // Gambar Logo
                     ctx.drawImage(logoImg, logoPos, logoPos, logoSize, logoSize);
+                } else {
+                    console.error("LOGO TIDAK DITEMUKAN DI:", logoPath);
                 }
+                
                 qrImage = await pdfDoc.embedPng(canvas.toBuffer());
             } catch (qrErr) { console.error("QR Error:", qrErr); }
         }
@@ -141,33 +152,26 @@ async function stampPDF(originalPdfBase64, stampData) {
                 try {
                     const pageIdx = parseInt(loc.pageIndex);
                     if (isNaN(pageIdx) || pageIdx < 0 || pageIdx >= pages.length) continue;
-                    
                     const page = pages[pageIdx];
                     const { width: pageWidth, height: pageHeight } = page.getSize();
                     const safeWidth = (parseFloat(render_width) > 50) ? parseFloat(render_width) : 600; 
                     const scale = pageWidth / safeWidth;
-
                     const finalW = (parseFloat(loc.w) || 80) * scale;
                     const finalH = (parseFloat(loc.h) || 80) * scale;
                     const finalX = (parseFloat(loc.x) || 0) * scale;
                     const finalY = pageHeight - ((parseFloat(loc.y) || 0) * scale) - finalH; 
-
                     if (!Number.isFinite(finalX) || !Number.isFinite(finalY) || !Number.isFinite(finalW) || !Number.isFinite(finalH)) continue;
-
                     if (loc.type === 'qr' && qrImage) {
                         page.drawImage(qrImage, { x: finalX, y: finalY, width: finalW, height: finalH });
                     } else if (loc.type === 'nomor') {
                         let fontSize = Math.floor(finalH * 0.65);
                         if(fontSize < 8) fontSize = 8;
                         const font = await pdfDoc.embedFont('Helvetica-Bold');
-                        page.drawText(String(nomor_surat || '-'), {
-                            x: finalX, y: finalY + (finalH * 0.2), size: fontSize, font: font, color: { type: 'RGB', red: 0, green: 0, blue: 0 },
-                        });
+                        page.drawText(String(nomor_surat || '-'), { x: finalX, y: finalY + (finalH * 0.2), size: fontSize, font: font, color: { type: 'RGB', red: 0, green: 0, blue: 0 }, });
                     }
                 } catch (errStamp) { console.error("Skip stamp:", errStamp.message); }
             }
         }
-
         if (lampiran && Array.isArray(lampiran)) {
             for (const att of lampiran) {
                 try {
@@ -189,30 +193,58 @@ async function stampPDF(originalPdfBase64, stampData) {
     }
 }
 
-// === CORE PDF GENERATOR (REVISI CSS: TABLE & SPACING) ===
+// === MAIN PDF GENERATOR (FIX LOGO PATH) ===
 async function createPDFBuffer(data) {
-    // 1. Jika Mode Upload (Skip, logika sama)
+    const APP_URL = "https://eoffice-mij-v3-production.up.railway.app"; 
+
+    // A. JIKA MODE UPLOAD
     if (data.mode_buat === 'upload' && data.uploaded_file_base64) {
+        const isApproved = data.status_global === 'APPROVED';
+        const nomorSurat = isApproved ? data.nomor_surat : "Draft/......../........";
+        const qrLink = isApproved ? `${APP_URL}/verify/${data.id_surat}` : 'PREVIEW_QR';
+        
         return await stampPDF(data.uploaded_file_base64, {
-            nomor_surat: data.status_global === 'APPROVED' ? data.nomor_surat : "Draft/......../........",
-            qr_data: data.status_global === 'APPROVED' ? `${APP_URL}/verify/${data.id_surat}` : 'PREVIEW_QR',
+            nomor_surat: nomorSurat,
+            qr_data: qrLink,
             locations: data.stamp_locations || [],
             lampiran: data.lampiran || [],
             render_width: data.render_width || 600
         });
     }
 
-    // 2. Mode Web Editor
+    // B. JIKA MODE WEB
     try {
         const kop = imgToBase64('src/assets/Kop_Surat_Resmi.png');
         const foot = imgToBase64('src/assets/Footer_Surat.png');
+        
         const isApproved = data.status_global === 'APPROVED';
-
-        // --- Persiapan Data ---
         let qrBase64 = null;
+        
         if (isApproved) {
             const info = `${APP_URL}/verify/${data.id_surat}`;
-            qrBase64 = await QRCode.toDataURL(info, { width: 120, margin: 1, errorCorrectionLevel: 'H' });
+            try {
+                const canvasSize = 200;
+                const canvas = createCanvas(canvasSize, canvasSize);
+                await QRCode.toCanvas(canvas, info, { width: canvasSize, margin: 1, errorCorrectionLevel: 'H' });
+                
+                // === REVISI PATH LOGO (Sama seperti di atas) ===
+                const logoPath = path.join(__dirname, 'src', 'assets', 'logo-mij.png');
+                console.log("Mencari logo di (Web Mode):", logoPath);
+
+                if (fs.existsSync(logoPath)) {
+                     const ctx = canvas.getContext('2d');
+                     const logoImg = await loadImage(logoPath);
+                     const logoSize = canvasSize * 0.23;
+                     const logoPos = (canvasSize - logoSize) / 2;
+                     ctx.fillStyle = '#ffffff';
+                     ctx.fillRect(logoPos - 3, logoPos - 3, logoSize + 6, logoSize + 6);
+                     ctx.drawImage(logoImg, logoPos, logoPos, logoSize, logoSize);
+                } else {
+                    console.error("LOGO TIDAK DITEMUKAN DI:", logoPath);
+                }
+                
+                qrBase64 = canvas.toDataURL();
+            } catch (e) { qrBase64 = await QRCode.toDataURL(info, { width: 120, margin: 1 }); }
         }
 
         let dateSrc = new Date();
