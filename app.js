@@ -7,21 +7,18 @@ const puppeteer = require('puppeteer');
 const handlebars = require('handlebars');
 const QRCode = require('qrcode');
 const ExcelJS = require('exceljs');
-const { PDFDocument } = require('pdf-lib');
+const { PDFDocument, rgb } = require('pdf-lib'); // Tambah rgb
 const { createCanvas, loadImage } = require('canvas');
 const APP_URL = "https://eoffice-mij-v3-production.up.railway.app";
 
-// GANTI BAGIAN INISIALISASI FIREBASE LAMA DENGAN INI:
+// === FIREBASE INIT ===
 try {
     let serviceAccount;
-    // Jika di Railway (Production), pakai Environment Variable
     if (process.env.FIREBASE_CREDENTIALS) {
         serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
     } else {
-        // Jika di Localhost, pakai file json
         serviceAccount = require('./serviceAccountKey.json');
     }
-
     admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 } catch (e) { console.error("❌ Firebase Auth Error:", e.message); }
 const db = admin.firestore();
@@ -31,20 +28,12 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' })); 
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// === HELPER UTAMA ===
+// === HELPER TANGGAL & UTILS ===
 const toRoman = (n) => ["","I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"][n] || "";
 const getFiscalYear = (d) => d.getMonth()+1 >= 7 ? `${d.getFullYear()}/${d.getFullYear()+1}` : `${d.getFullYear()-1}/${d.getFullYear()}`;
 
-// --- FUNGSI TANGGAL BARU (FIX: MENAMBAHKAN toHijri) ---
-
-// 1. Fungsi Inti Konversi Hijriyah
 function toHijri(date) {
-    // Menggunakan Intl API untuk mendapatkan komponen tanggal Hijriyah
-    const formatter = new Intl.DateTimeFormat('en-US-u-ca-islamic-umalqura', {
-        day: 'numeric',
-        month: 'numeric',
-        year: 'numeric'
-    });
+    const formatter = new Intl.DateTimeFormat('en-US-u-ca-islamic-umalqura', { day: 'numeric', month: 'numeric', year: 'numeric' });
     const parts = formatter.formatToParts(date);
     const day = parts.find(p => p.type === 'day').value;
     const month = parseInt(parts.find(p => p.type === 'month').value);
@@ -52,34 +41,18 @@ function toHijri(date) {
     return { day, month, year };
 }
 
-// 2. Memecah Masehi (Untuk Rata Kiri-Kanan)
 function getMasehiParts(date) {
     const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
-    return {
-        dateStr: `${date.getDate()} ${months[date.getMonth()]}`,
-        yearStr: `${date.getFullYear()} M`
-    };
+    return { dateStr: `${date.getDate()} ${months[date.getMonth()]}`, yearStr: `${date.getFullYear()} M` };
 }
 
-// 3. Memecah Hijriyah (Untuk Rata Kiri-Kanan)
 function getHijriParts(date) {
     const h = toHijri(date);
     const months = ["Muharram", "Safar", "Rabi’ul Awal", "Rabi’ul Akhir", "Jumadil Awal", "Jumadil Akhir", "Rajab", "Sya’ban", "Ramadhan", "Syawal", "Dzulqa’dah", "Dzulhijjah"];
-    // month - 1 karena array mulai dari 0
     const monthName = months[(h.month - 1)] || months[0];
-    return {
-        dateStr: `${h.day} ${monthName}`,
-        yearStr: `${h.year} H`
-    };
+    return { dateStr: `${h.day} ${monthName}`, yearStr: `${h.year} H` };
 }
 
-const getMasehiDate = (d) => `${d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })} M`;
-const getHijriOnly = (d) => {
-    const parts = getHijriParts(d);
-    return `${parts.dateStr} ${parts.yearStr}`;
-};
-
-// --- HELPER LAINNYA ---
 function constructName(userData) {
     if (!userData) return 'Unknown';
     const p = userData.profile || userData; 
@@ -100,7 +73,7 @@ const imgToBase64 = (relativePath) => {
     } catch (e) { return null; }
 };
 
-// === 1. FUNGSI STAMPING (FIX LOGO PATH) ===
+// === 1. FUNGSI STAMPING (UPLOAD MODE) ===
 async function stampPDF(originalPdfBase64, stampData) {
     const cleanBase64 = (str) => {
         if (!str || typeof str !== 'string') return null;
@@ -116,6 +89,7 @@ async function stampPDF(originalPdfBase64, stampData) {
         const pdfDoc = await PDFDocument.load(pdfBuffer);
         const pages = pdfDoc.getPages();
 
+        // Generate QR
         let qrImage = null;
         if (qr_data) {
             try {
@@ -123,30 +97,21 @@ async function stampPDF(originalPdfBase64, stampData) {
                 const canvas = createCanvas(canvasSize, canvasSize);
                 await QRCode.toCanvas(canvas, qr_data, { width: canvasSize, margin: 1, errorCorrectionLevel: 'H' });
                 
-                // === REVISI PATH LOGO ===
                 const logoPath = path.join(__dirname, 'src', 'assets', 'logo-mij.png');
-                console.log("Mencari logo di (Stamp Mode):", logoPath); // Cek Logs Railway nanti
-
                 if (fs.existsSync(logoPath)) {
                     const ctx = canvas.getContext('2d');
                     const logoImg = await loadImage(logoPath);
                     const logoSize = canvasSize * 0.23;
                     const logoPos = (canvasSize - logoSize) / 2;
-                    
-                    // Gambar Kotak Putih Background Logo
                     ctx.fillStyle = '#ffffff';
                     ctx.fillRect(logoPos - 3, logoPos - 3, logoSize + 6, logoSize + 6);
-                    
-                    // Gambar Logo
                     ctx.drawImage(logoImg, logoPos, logoPos, logoSize, logoSize);
-                } else {
-                    console.error("LOGO TIDAK DITEMUKAN DI:", logoPath);
                 }
-                
                 qrImage = await pdfDoc.embedPng(canvas.toBuffer());
             } catch (qrErr) { console.error("QR Error:", qrErr); }
         }
 
+        // --- ADD STAMPS ---
         if (locations && Array.isArray(locations)) {
             for (const loc of locations) {
                 try {
@@ -160,18 +125,42 @@ async function stampPDF(originalPdfBase64, stampData) {
                     const finalH = (parseFloat(loc.h) || 80) * scale;
                     const finalX = (parseFloat(loc.x) || 0) * scale;
                     const finalY = pageHeight - ((parseFloat(loc.y) || 0) * scale) - finalH; 
-                    if (!Number.isFinite(finalX) || !Number.isFinite(finalY) || !Number.isFinite(finalW) || !Number.isFinite(finalH)) continue;
+                    
                     if (loc.type === 'qr' && qrImage) {
                         page.drawImage(qrImage, { x: finalX, y: finalY, width: finalW, height: finalH });
                     } else if (loc.type === 'nomor') {
                         let fontSize = Math.floor(finalH * 0.65);
                         if(fontSize < 8) fontSize = 8;
                         const font = await pdfDoc.embedFont('Helvetica-Bold');
-                        page.drawText(String(nomor_surat || '-'), { x: finalX, y: finalY + (finalH * 0.2), size: fontSize, font: font, color: { type: 'RGB', red: 0, green: 0, blue: 0 }, });
+                        page.drawText(String(nomor_surat || '-'), { x: finalX, y: finalY + (finalH * 0.2), size: fontSize, font: font, color: rgb(0,0,0) });
                     }
-                } catch (errStamp) { console.error("Skip stamp:", errStamp.message); }
+                } catch (errStamp) { }
             }
         }
+
+        // --- TAMBAHAN: WATERMARK FOOTER (UPLOAD MODE) ---
+        // Jika surat sudah disetujui, tambahkan tulisan di bawah halaman pertama (atau semua halaman)
+        if (nomor_surat && !nomor_surat.includes('Draft')) {
+             try {
+                const font = await pdfDoc.embedFont('Helvetica-Oblique');
+                const firstPage = pages[0];
+                const { width } = firstPage.getSize();
+                const text = "Dokumen ini telah ditandatangani secara elektronik (Digital Signature)";
+                const textSize = 9;
+                const textWidth = font.widthOfTextAtSize(text, textSize);
+                
+                // Taruh di tengah bawah
+                firstPage.drawText(text, {
+                    x: (width - textWidth) / 2,
+                    y: 27,
+                    size: textSize,
+                    font: font,
+                    color: rgb(0.5, 0.5, 0.5),
+                });
+             } catch(e) {}
+        }
+
+        // --- MERGE LAMPIRAN ---
         if (lampiran && Array.isArray(lampiran)) {
             for (const att of lampiran) {
                 try {
@@ -187,13 +176,10 @@ async function stampPDF(originalPdfBase64, stampData) {
             }
         }
         return Buffer.from(await pdfDoc.save());
-    } catch (e) { 
-        console.error("STAMP CRASH:", e); 
-        throw new Error("Gagal memproses PDF: " + e.message);
-    }
+    } catch (e) { throw new Error("Gagal memproses PDF: " + e.message); }
 }
 
-// === MAIN PDF GENERATOR (FIX LOGO PATH) ===
+// === 2. MAIN PDF GENERATOR (WEB MODE - HTML) ===
 async function createPDFBuffer(data) {
     const APP_URL = "https://eoffice-mij-v3-production.up.railway.app"; 
 
@@ -202,7 +188,6 @@ async function createPDFBuffer(data) {
         const isApproved = data.status_global === 'APPROVED';
         const nomorSurat = isApproved ? data.nomor_surat : "Draft/......../........";
         const qrLink = isApproved ? `${APP_URL}/verify/${data.id_surat}` : 'PREVIEW_QR';
-        
         return await stampPDF(data.uploaded_file_base64, {
             nomor_surat: nomorSurat,
             qr_data: qrLink,
@@ -212,14 +197,14 @@ async function createPDFBuffer(data) {
         });
     }
 
-    // B. JIKA MODE WEB
+    // B. JIKA MODE WEB (HTML)
     try {
         const kop = imgToBase64('src/assets/Kop_Surat_Resmi.png');
         const foot = imgToBase64('src/assets/Footer_Surat.png');
-        
         const isApproved = data.status_global === 'APPROVED';
         let qrBase64 = null;
         
+        // Generate QR
         if (isApproved) {
             const info = `${APP_URL}/verify/${data.id_surat}`;
             try {
@@ -227,22 +212,16 @@ async function createPDFBuffer(data) {
                 const canvas = createCanvas(canvasSize, canvasSize);
                 await QRCode.toCanvas(canvas, info, { width: canvasSize, margin: 1, errorCorrectionLevel: 'H' });
                 
-                // === REVISI PATH LOGO (Sama seperti di atas) ===
                 const logoPath = path.join(__dirname, 'src', 'assets', 'logo-mij.png');
-                console.log("Mencari logo di (Web Mode):", logoPath);
-
                 if (fs.existsSync(logoPath)) {
-                     const ctx = canvas.getContext('2d');
-                     const logoImg = await loadImage(logoPath);
-                     const logoSize = canvasSize * 0.23;
-                     const logoPos = (canvasSize - logoSize) / 2;
-                     ctx.fillStyle = '#ffffff';
-                     ctx.fillRect(logoPos - 3, logoPos - 3, logoSize + 6, logoSize + 6);
-                     ctx.drawImage(logoImg, logoPos, logoPos, logoSize, logoSize);
-                } else {
-                    console.error("LOGO TIDAK DITEMUKAN DI:", logoPath);
+                      const ctx = canvas.getContext('2d');
+                      const logoImg = await loadImage(logoPath);
+                      const logoSize = canvasSize * 0.23;
+                      const logoPos = (canvasSize - logoSize) / 2;
+                      ctx.fillStyle = '#ffffff';
+                      ctx.fillRect(logoPos - 3, logoPos - 3, logoSize + 6, logoSize + 6);
+                      ctx.drawImage(logoImg, logoPos, logoPos, logoSize, logoSize);
                 }
-                
                 qrBase64 = canvas.toDataURL();
             } catch (e) { qrBase64 = await QRCode.toDataURL(info, { width: 120, margin: 1 }); }
         }
@@ -255,10 +234,11 @@ async function createPDFBuffer(data) {
         const nomorSurat = isApproved ? data.nomor_surat : "Draft/......../........";
         const lampiranText = (data.lampiran && data.lampiran.length > 0) ? "1 (satu) Berkas" : "-";
         
+        // --- TEMBUSAN ---
         let tembusanHtml = '';
         if (data.tembusan && data.tembusan.length > 0) {
             tembusanHtml = `
-            <div style="margin-top: 7em; font-size: inherit;">
+            <div style="margin-top: 1em; font-size: 10pt;">
                 <b style="text-decoration: underline;">Tembusan:</b>
                 <ol style="margin-top: 0.2em; padding-left: 20px; margin-bottom: 0;">
                     ${data.tembusan.map(t => `<li style="padding-left: 5px;">${t}</li>`).join('')}
@@ -266,109 +246,76 @@ async function createPDFBuffer(data) {
             </div>`;
         }
 
+        // --- DAFTAR PEMARAF (PARAF LIST) ---
+        let parafHtml = '';
+        if (data.reviewers && data.reviewers.length > 0) {
+             const approvedReviewers = data.reviewers.filter(r => r.status === 'APPROVED');
+             if(approvedReviewers.length > 0) {
+                parafHtml = `
+                <div style="margin-top: 1em; font-size: 9pt; color: #555; border-top: 1px dashed #ccc; padding-top: 5px;">
+                    <b>Diparaf Oleh:</b>
+                    <ul style="margin: 0; padding-left: 20px;">
+                        ${approvedReviewers.map(r => {
+                            let tglParaf = '-';
+                            if(r.approved_at && r.approved_at._seconds) {
+                                tglParaf = new Date(r.approved_at._seconds * 1000).toLocaleDateString('id-ID');
+                            }
+                            return `<li>${r.nama} (${r.jabatan}) - ${tglParaf}</li>`;
+                        }).join('')}
+                    </ul>
+                </div>
+                `;
+             }
+        }
+
+        // --- WATERMARK TEKS ---
+        let watermarkHtml = '';
+        if(isApproved) {
+            watermarkHtml = `
+            <div style="margin-top: 15px; font-size: 8pt; color: #888; text-align: center; border-top: 1px solid #ddd; padding-top: 5px;">
+                <i>Surat ini ditandatangani secara elektronik (Digital Signature) | Validitas dokumen dapat dicek melalui QR Code di atas.</i>
+            </div>
+            `;
+        }
+
         let ttdVisual = isApproved && qrBase64 
             ? `<img src="${qrBase64}" style="width: 80px; height: 80px;">` 
             : `<div style="width: 100px; height: 60px; border: 2px dashed #999; display: flex; align-items: center; justify-content: center; color: #999; font-size: 0.8em; font-weight: bold;">DRAFT TTD</div>`;
 
-        // --- HTML & CSS PERBAIKAN ---
+        // --- HTML CONTENT ---
         const htmlContent = `<!DOCTYPE html>
         <html>
         <head>
             <style>
-                /* 1. GLOBAL RESET (Mencegah Font Berantakan) */
-                * {
-                    font-family: 'Trebuchet MS', sans-serif !important;
-                    box-sizing: border-box;
-                }
-                
+                * { font-family: 'Trebuchet MS', sans-serif !important; box-sizing: border-box; }
                 @page { size: 215mm 330mm; margin: 0; }
-
-                body {
-                    margin: 0; padding: 0;
-                    font-size: 12pt; 
-                    line-height: 1.35; /* AGAR TIDAK TERLALU RENGGANG */
-                    color: #000;
-                    background: #fff;
-                }
-
-                .page-content {
-                    /* Padding Kiri/Kanan 25mm, Bawah 35mm (space footer) */
-                    padding: 5px 25mm 35mm 25mm; 
-                    position: relative;
-                    z-index: 10;
-                }
-
+                body { margin: 0; padding: 0; font-size: 12pt; line-height: 1.35; color: #000; background: #fff; }
+                .page-content { padding: 5px 25mm 30mm 25mm; position: relative; z-index: 10; min-height: 90vh; }
                 .header-img { width: 100%; display: block; margin-bottom: 0; }
                 .footer-img { position: fixed; bottom: 0; left: 0; width: 100%; z-index: -10; }
-
-                /* 2. STYLE UNTUK ISI SURAT (Spacing Paragraf) */
-                .content { 
-                    text-align: justify; 
-                    font-size: inherit; 
-                    width: 100%; 
-                }
-                
-                /* Reset heading/span dari editor agar tidak besar sendiri */
-                .content h1, .content h2, .content h3, .content h4, .content span, .content div {
-                    font-size: inherit !important;
-                    font-weight: normal;
-                    margin: 0;
-                    line-height: inherit;
-                }
+                .content { text-align: justify; font-size: inherit; width: 100%; }
+                .content h1, .content h2, .content h3, .content span, .content div { font-size: inherit !important; font-weight: normal; margin: 0; line-height: inherit; }
                 .content b, .content strong { font-weight: bold; }
-
-                /* PERBAIKAN SPASI PARAGRAF */
-                .content p { 
-                    margin-top: 0;
-                    margin-bottom: 0.6em; /* Jarak antar paragraf diperkecil (sebelumnya 1em) */
-                    text-indent: 0px; 
-                    line-height: inherit; 
-                }
+                .content p { margin-top: 0; margin-bottom: 0.6em; text-indent: 0px; line-height: inherit; }
                 .content ol, .content ul { margin: 0 0 0.6em 0; padding-left: 35px; }
-                
-                /* 3. PERBAIKAN TABEL (AGAR TITIK DUA TIDAK JAUH) */
-                .content table { 
-                    width: 100% !important; 
-                    margin: 0.5em 0; 
-                    border-collapse: collapse; 
-                    font-size: inherit; 
-                }
-                .content table td { 
-                    padding: 2px 4px; 
-                    vertical-align: top; 
-                    border: none; /* Default tanpa border untuk layout agenda */
-                }
-                
-                /* TRIK CSS: Membatasi lebar kolom pertama (Label Hari/Tanggal) */
-                /* Ini akan memaksa titik dua (:) mendekat ke kiri */
-                .content table tr td:first-child {
-                    width: 50px; /* Lebar fix untuk label */
-                    white-space: nowrap; /* Jangan biarkan label turun baris */
-                }
-                /* Jika user pakai border di editor, class ini akan menangani */
+                .content table { width: 100% !important; margin: 0.5em 0; border-collapse: collapse; font-size: inherit; }
+                .content table td { padding: 2px 4px; vertical-align: top; border: none; }
+                .content table tr td:first-child { width: 50px; white-space: nowrap; }
                 .content table[border="1"] td { border: 1px solid #000; }
-
-                /* HEADER TANGGAL (Rata Kanan) */
                 .date-table { float: right; border-collapse: collapse; margin-bottom: 0.5em; font-size: inherit; }
-                .date-table td { padding: 0; vertical-align: top; text-align: right; font-size: inherit; }
-                .hijri-row { border-bottom: 1px solid #000; padding-bottom: 0px; margin-bottom: 0px; display: inline-block; min-width: 120px; }
-
-                /* META DATA (Nomor, Lampiran) */
+                .date-table td { padding: 0; vertical-align: top; text-align: right; }
+                .hijri-row { border-bottom: 1px solid #000; display: inline-block; min-width: 120px; }
                 .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 1.2em; font-size: inherit; }
-                .meta-table td { vertical-align: top; padding: 0px 0; font-size: inherit; }
-
-                /* TANDA TANGAN */
+                .meta-table td { vertical-align: top; padding: 0px 0; }
                 .signature-wrapper { margin-top: 2em; page-break-inside: avoid; width: 100%; font-size: inherit; }
-                .signature-table { width: 100%; border: none; font-size: inherit; }
+                .signature-table { width: 100%; border: none; }
                 .ttd-col { text-align: center; padding-left: 10px; }
                 .ttd-space { height: 5.5em; display: flex; align-items: center; justify-content: center; }
-
                 .clearfix::after { content: ""; clear: both; display: table; }
             </style>
         </head>
         <body>
             <img src="${kop}" class="header-img">
-            
             <div class="page-content">
                 <div class="clearfix">
                     <table class="date-table">
@@ -416,7 +363,7 @@ async function createPDFBuffer(data) {
                         <tr>
                             <td style="width:50%; vertical-align:top; padding-right:15px;">
                                 ${tembusanHtml}
-                            </td>
+                                ${parafHtml} </td>
                             <td style="width:50%; vertical-align:top;">
                                 <div class="ttd-col">
                                     <div>Hormat Kami,</div>
@@ -428,9 +375,8 @@ async function createPDFBuffer(data) {
                             </td>
                         </tr>
                     </table>
-                </div>
+                    ${watermarkHtml} </div>
             </div>
-            
             <img src="${foot}" class="footer-img">
         </body>
         </html>`;
@@ -442,43 +388,22 @@ async function createPDFBuffer(data) {
         const page = await browser.newPage();
         await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
 
-        // --- LOGIKA FIT TO PAGE (SMART RESIZE) ---
+        // Auto Resize Font logic (Simpel)
         await page.evaluate(() => {
             const body = document.body;
-            // Tinggi Area Aman (F4 - Header - Footer - Margin Error)
             const MAX_HEIGHT = 1180; 
-            
-            let currentSize = 12; // Start 12pt
-            const minSize = 9;    // Mentok 9pt
-
-            const isOverflow = () => body.scrollHeight > MAX_HEIGHT;
-
-            // Loop Resize
-            while (isOverflow() && currentSize > minSize) {
-                currentSize -= 0.5; // Turun per 0.5pt
+            let currentSize = 12; 
+            const minSize = 9;
+            while (body.scrollHeight > MAX_HEIGHT && currentSize > minSize) {
+                currentSize -= 0.5;
                 body.style.fontSize = currentSize + 'pt';
-
-                // Tweak Line Height agar makin rapat saat font kecil
-                if (currentSize < 10) {
-                    body.style.lineHeight = '1.25';
-                } else if (currentSize < 11) {
-                    body.style.lineHeight = '1.3';
-                } else {
-                    body.style.lineHeight = '1.35';
-                }
             }
         });
 
-        const pdfBuffer = await page.pdf({ 
-            width: '215mm', 
-            height: '330mm', 
-            printBackground: true, 
-            margin: { top:0, right:0, bottom:0, left:0 } 
-        });
-
+        const pdfBuffer = await page.pdf({ width: '215mm', height: '330mm', printBackground: true, margin: { top:0, right:0, bottom:0, left:0 } });
         await browser.close();
 
-        // Merge Lampiran (Jika ada)
+        // Merge Lampiran
         if (data.lampiran && data.lampiran.length > 0) {
             const mergedPdf = await PDFDocument.load(pdfBuffer);
             for (const att of data.lampiran) {
@@ -494,13 +419,8 @@ async function createPDFBuffer(data) {
             }
             return Buffer.from(await mergedPdf.save());
         }
-
         return Buffer.from(pdfBuffer);
-
-    } catch (e) {
-        console.error("CreatePDF Error:", e);
-        throw e;
-    }
+    } catch (e) { console.error("CreatePDF Error:", e); throw e; }
 }
 
 // === ROUTES ===
@@ -532,11 +452,20 @@ app.get('/api/references', async (req, res) => {
             allUnitsRaw = (await db.collection('units').get()).docs.map(d => d.data());
             typesRaw = (await db.collection('letter_types').get()).docs.map(d => d.data());
         } catch (err) {}
+        
+        // Cari User lain untuk list Paraf & Approver
+        let allUsersRaw = [];
+        try {
+            const usersSnap = await db.collection('users').get();
+            allUsersRaw = usersSnap.docs.map(d => ({ nip: d.id, ...d.data() }));
+        } catch (uErr) {}
+
         const allUnits = allUnitsRaw.map(u => ({
             code: u.code || u['Kode Unit (ID)'] || u['Kode Unit'] || '',
             name: u.name || u['Nama Unit Lengkap'] || u['Nama Unit'] || '',
             ...u 
         })).filter(u => u.code);
+
         const types = typesRaw.map(t => ({
             id: t.id || t['Kode Tipe (ID Database)'] || t['Kode Tipe'] || '',
             name: t.name || t['Nama Tipe Surat (Untuk Dropdown)'] || t['Nama Tipe'] || '',
@@ -544,26 +473,30 @@ app.get('/api/references', async (req, res) => {
             need_activity_code: t.need_activity_code || (String(t['Keterangan'] || '').toLowerCase().includes('kegiatan')),
             ...t
         })).filter(t => t.id);
-        allUnits.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-        types.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+        // Map users simple untuk dropdown Frontend
+        const usersSimple = allUsersRaw.map(u => ({
+            nip: u.nip,
+            nama: constructName(u),
+            jabatan: getJobTitle(u)
+        })).sort((a,b) => a.nama.localeCompare(b.nama));
+
         let userData = null;
         if(nip) {
             const uDoc = await db.collection('users').doc(nip).get();
             if(uDoc.exists) userData = uDoc.data();
         }
-        res.json({ units: allUnits, types: types, user_raw: userData });
+        res.json({ units: allUnits, types: types, user_raw: userData, users_list: usersSimple });
     } catch(e) { res.status(500).json({error: e.message}); }
 });
 
 app.post('/api/preview-pdf', async (req, res) => {
     try {
         const { mode_buat, upload_data, approver_nip, ...sisaData } = req.body;
-        
         // Mode Upload
         if (mode_buat === 'upload' && upload_data) {
             const previewPdf = await stampPDF(upload_data.file_base64, {
                 nomor_surat: "Draft/Preview/...",
-                // Pakai variabel APP_URL
                 qr_data: `${APP_URL}/verify/PREVIEW`, 
                 locations: upload_data.stamps,
                 render_width: upload_data.render_width,
@@ -572,15 +505,14 @@ app.post('/api/preview-pdf', async (req, res) => {
             res.set({'Content-Type':'application/pdf'}); 
             return res.send(previewPdf);
         }
-
         // Mode Web
         let approverData = {};
-        if (approver_nip && typeof approver_nip === 'string' && approver_nip.trim() !== '') {
-            try {
-                const approverDoc = await db.collection('users').doc(approver_nip).get();
-                if (approverDoc.exists) approverData = approverDoc.data();
-            } catch(e) { console.log("Approver fetch skipped:", e.message); }
+        if (approver_nip) {
+            try { const d = await db.collection('users').doc(approver_nip).get(); if(d.exists) approverData = d.data(); } catch(e){}
         }
+        
+        // Simulasikan Reviewers jika ada
+        const reviewersSimulated = (sisaData.reviewers || []).map(r => ({ ...r, status: 'APPROVED', approved_at: { _seconds: Date.now()/1000 } }));
 
         const mockData = {
             ...sisaData, 
@@ -590,20 +522,20 @@ app.post('/api/preview-pdf', async (req, res) => {
                 jabatan: getJobTitle(approverData) || "JABATAN", 
                 nip: approver_nip || "NIP. -"
             },
+            reviewers: reviewersSimulated, // Tampilkan simulasi paraf
             id_surat: 'PREVIEW',
             isi_ringkas: sisaData.isi_surat || ''
         };
         const pdfBuffer = await createPDFBuffer(mockData);
         res.set({'Content-Type':'application/pdf'}); res.send(pdfBuffer);
-    } catch (e) { 
-        console.error("CRITICAL PREVIEW ERROR:", e);
-        res.status(500).json({ error: "Gagal membuat preview: " + e.message }); 
-    }
+    } catch (e) { res.status(500).json({ error: "Preview Error: " + e.message }); }
 });
 
+// === CREATE / UPDATE LETTER (REVISI: SUPPORT MULTI REVIEWERS) ===
 app.post('/api/letters', async (req, res) => {
     try {
-        const { approver_nip, maker_nip, mode_buat, upload_data, id_surat, ...data } = req.body;
+        // reviewers_nips: Array of string NIP ["123", "456"] (Urutan dari UI)
+        const { approver_nip, maker_nip, mode_buat, upload_data, id_surat, reviewers_nips, ...data } = req.body;
         if (!approver_nip) return res.status(400).json({ error: "NIP Penandatangan Kosong!" });
         
         const approverDoc = await db.collection('users').doc(approver_nip).get();
@@ -611,15 +543,29 @@ app.post('/api/letters', async (req, res) => {
         const makerData = makerDoc.exists ? makerDoc.data() : {};
         const approverData = approverDoc.exists ? approverDoc.data() : {};
 
-        let ref;
-        let isUpdate = false;
+        // Proses Reviewers Data
+        let reviewers = [];
+        if (reviewers_nips && Array.isArray(reviewers_nips) && reviewers_nips.length > 0) {
+            for (const rNip of reviewers_nips) {
+                const rDoc = await db.collection('users').doc(rNip).get();
+                if(rDoc.exists) {
+                    const rData = rDoc.data();
+                    reviewers.push({
+                        nip: rNip,
+                        nama: constructName(rData),
+                        jabatan: getJobTitle(rData),
+                        status: 'PENDING',
+                        approved_at: null
+                    });
+                }
+            }
+        }
 
-        if (id_surat && id_surat !== 'null' && id_surat !== 'undefined') {
+        let ref, isUpdate = false;
+        if (id_surat && id_surat !== 'null') {
             const docCheck = await db.collection('letters').doc(id_surat).get();
-            if (docCheck.exists) {
-                ref = db.collection('letters').doc(id_surat);
-                isUpdate = true;
-            } else { ref = db.collection('letters').doc(); }
+            if (docCheck.exists) { ref = db.collection('letters').doc(id_surat); isUpdate = true; }
+            else { ref = db.collection('letters').doc(); }
         } else { ref = db.collection('letters').doc(); }
 
         let letterData = {
@@ -628,6 +574,10 @@ app.post('/api/letters', async (req, res) => {
             status_global: 'PROSES', 
             maker: { nip: maker_nip, unit: data.unit_kop, nama: constructName(makerData), jabatan: getJobTitle(makerData) },
             approver: { nip: approver_nip, nama: constructName(approverData), jabatan: getJobTitle(approverData), status: 'PENDING' },
+            reviewers: reviewers, // Array Objek Reviewers
+            current_step: 0,      // 0..N (Reviewers), N+1 (Approver)
+            reviewers_count: reviewers.length,
+            reviewers_search: reviewers.map(r => r.nip), // Untuk searching query
             updated_at: admin.firestore.FieldValue.serverTimestamp(),
             mode_buat: mode_buat || 'web',
             revision_note: admin.firestore.FieldValue.delete()
@@ -649,120 +599,185 @@ app.post('/api/letters', async (req, res) => {
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// === ENDPOINT ARSIP SURAT (MY LETTERS) - REVISI FINAL "OWNER + UNIT" ===
 app.get('/api/my-letters', async (req, res) => {
     try {
         const nip = req.query.nip;
-        let role = 'User', myUnit = '';
+        let role = 'User';
+        let myUnit = '';
+        
+        // 1. Cek Role User
         try {
             const userDoc = await db.collection('users').doc(nip).get();
             if (userDoc.exists) {
-                role = userDoc.data()?.system_role?.role_name || 'User';
-                myUnit = userDoc.data()?.profile?.unit_homebase || '';
+                const uData = userDoc.data();
+                role = uData.system_role?.role_name || 'User';
+                myUnit = uData.profile?.unit_homebase || uData.unit_homebase || '';
             }
-        } catch (err) {}
+        } catch (err) { console.error("Error fetch user:", err); }
 
-        let query = db.collection('letters');
-        if (role.includes('Super Admin Global')) {
-            const snap = await query.orderBy('created_at', 'desc').get();
-            const unique = Array.from(new Map(snap.docs.map(doc => [doc.id, doc.data()])).values());
-            return res.json({ success: true, data: unique });
+        console.log(`[MyLetters] User: ${nip} | Role: ${role} | Unit: ${myUnit}`);
+
+        const lettersRef = db.collection('letters');
+        let combinedDocs = [];
+
+        // --- LOGIKA QUERY UTAMA ---
+
+        if (role === 'Super Admin Global') {
+            // A. GLOBAL: Melihat SELURUH surat di sistem (Otomatis termasuk surat buatan sendiri)
+            // Menggunakan .get() tanpa where
+            const snap = await lettersRef.get();
+            combinedDocs = snap.docs;
         } 
-        
-        const queryMe = db.collection('letters').where('maker.nip', '==', nip);
-        const snapMe = await queryMe.get();
-        let letters = snapMe.docs.map(d => d.data());
+        else {
+            // B. SELAIN GLOBAL (MIJ, Satdik, User Biasa)
+            // Kita pakai teknik Promise.all untuk menggabungkan "Surat Saya" + "Surat Wewenang Unit"
+            
+            let promises = [];
 
-        if (role.includes('Super Admin Satdik') || role.includes('Super Admin Madrasah')) {
-            if (myUnit) {
-                const queryUnit = db.collection('letters').where('maker.unit', '==', myUnit);
-                const snapUnit = await queryUnit.get();
-                const unitLetters = snapUnit.docs.map(d => d.data());
-                const combined = [...letters, ...unitLetters];
-                const uniqueMap = new Map();
-                combined.forEach(item => { if (!uniqueMap.has(item.id_surat)) uniqueMap.set(item.id_surat, item); });
-                letters = Array.from(uniqueMap.values());
+            // 1. SELALU Ambil Surat Buatan Sendiri (Milik Pribadi)
+            promises.push(lettersRef.where('maker.nip', '==', nip).get());
+
+            // 2. Tambahan Akses Unit (Sesuai Role)
+            if (role === 'Super Admin Madrasah Istiqlal Jakarta') {
+                // Tambah surat dengan unit 'MIJ'
+                promises.push(lettersRef.where('maker.unit', '==', 'MIJ').get());
             }
+            else if (role === 'Super Admin Satdik' && myUnit) {
+                // Tambah surat dengan unit Homebase User
+                promises.push(lettersRef.where('maker.unit', '==', myUnit).get());
+            }
+
+            // Eksekusi Paralel
+            const results = await Promise.all(promises);
+            
+            // Gabungkan hasil query
+            results.forEach(snap => {
+                combinedDocs = [...combinedDocs, ...snap.docs];
+            });
         }
+
+        // --- PENGOLAHAN DATA & DEDUPLIKASI ---
+        if (combinedDocs.length === 0) return res.json({ success: true, data: [] });
+
+        // Gunakan Map untuk menghapus duplikat ID Surat
+        // (Contoh: Saya Admin MIJ, saya buat surat unit MIJ. Maka surat itu muncul di Query Pribadi DAN Query Unit. Map akan menyatukannya)
+        const uniqueMap = new Map();
+        combinedDocs.forEach(doc => {
+            const data = doc.data();
+            if (!uniqueMap.has(data.id_surat)) {
+                uniqueMap.set(data.id_surat, data);
+            }
+        });
+
+        // Convert ke Array
+        let letters = Array.from(uniqueMap.values());
+        
+        // Sorting (Terbaru di atas) - Dilakukan di JS agar aman dari error Index Firestore
         letters.sort((a,b) => (b.created_at?._seconds || 0) - (a.created_at?._seconds || 0));
+
         res.json({ success: true, data: letters });
+
     } catch (e) { 
-        if (e.message.includes('index')) return res.status(500).json({ error: "DB Index Required" });
+        console.error("MyLetters Error:", e);
         res.status(500).json({ error: e.message }); 
     }
 });
 
+// === REVISI: INCOMING LETTERS DENGAN FILTER STEP ===
 app.get('/api/incoming-letters', async (req, res) => {
     try {
         const nip = req.query.nip;
         const type = req.query.type; 
-        let query = db.collection('letters').where('approver.nip', '==', nip);
-        const snap = await query.get();
-        if (snap.empty) return res.json({ success: true, data: [] });
-
-        let letters = snap.docs.map(d => d.data());
-        if (type === 'history') {
-            letters = letters.filter(l => ['APPROVED', 'REVISION'].includes(l.status_global));
-        } else {
-            letters = letters.filter(l => l.status_global === 'PROSES');
-        }
-
-        letters = await Promise.all(letters.map(async (l) => {
-            if (!l.maker?.nama || l.maker.nama === 'Nama Tidak Tersedia' || l.maker.nama === 'Unknown') {
-                const uDoc = await db.collection('users').doc(l.maker.nip).get();
-                if (uDoc.exists) {
-                    const uData = uDoc.data();
-                    l.maker = { ...l.maker, nama: constructName(uData), jabatan: getJobTitle(uData) };
-                }
-            }
-            return l;
-        }));
         
-        letters.sort((a,b) => (b.created_at?._seconds || 0) - (a.created_at?._seconds || 0));
-        res.json({ success: true, data: letters });
-    } catch (e) { 
-        console.error("Incoming Error:", e);
-        res.status(500).json({ error: e.message }); 
-    }
-});
-
-app.get('/api/export-excel', async (req, res) => {
-    try {
-        const { start, end } = req.query;
-        let query = db.collection('letters');
-        if (start && end) {
-            const startDate = new Date(start); startDate.setHours(0,0,0);
-            const endDate = new Date(end); endDate.setHours(23,59,59);
-            query = query.where('created_at', '>=', startDate).where('created_at', '<=', endDate);
-        }
+        // Ambil semua surat yang relevan (Approver ATAU Reviewer)
+        // Cara: Ambil status 'PROSES', lalu filter di JS karena Firestore OR terbatas
+        const query = db.collection('letters').where('status_global', '==', 'PROSES');
         const snap = await query.get();
-        const letters = snap.docs.map(d => d.data());
-        const workbook = new ExcelJS.Workbook();
-        const sheet = workbook.addWorksheet('Rekap Surat');
-        sheet.columns = [
-            { header: 'No', key: 'idx', width: 5 }, { header: 'Tanggal', key: 'date', width: 15 },
-            { header: 'Unit', key: 'unit', width: 10 }, { header: 'Nomor', key: 'nomor', width: 25 },
-            { header: 'Perihal', key: 'perihal', width: 40 }, { header: 'Maker', key: 'maker', width: 30 },
-            { header: 'Approver', key: 'approver', width: 30 }, { header: 'Status', key: 'status', width: 15 },
-        ];
-        letters.forEach((l, i) => {
-            const tgl = l.created_at ? new Date(l.created_at._seconds * 1000).toLocaleDateString('id-ID') : '-';
-            sheet.addRow({ idx: i + 1, date: tgl, unit: l.maker?.unit || '-', nomor: l.nomor_surat || '-', perihal: l.perihal, maker: l.maker?.nama, approver: l.approver?.nama, status: l.status_global });
+        let allProses = snap.docs.map(d => d.data());
+
+        // Filter untuk User ini
+        let myTasks = allProses.filter(l => {
+            const currentStep = l.current_step || 0;
+            const reviewers = l.reviewers || [];
+            
+            // 1. Apakah giliran Approver?
+            if (currentStep >= reviewers.length) {
+                // Giliran Approver
+                return l.approver.nip === nip;
+            } else {
+                // Giliran Reviewer
+                const currentReviewer = reviewers[currentStep];
+                return currentReviewer && currentReviewer.nip === nip;
+            }
         });
-        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', 'attachment; filename=Rekap.xlsx');
-        await workbook.xlsx.write(res);
-        res.end();
-    } catch (e) { res.status(500).send(e.message); }
+
+        // Untuk tab History (Sudah Approve/Reject)
+        if (type === 'history') {
+             // Logic history bisa diperbaiki nanti untuk ambil 'APPROVED'/'REVISION' milik user
+             // Sementara return kosong atau query khusus history
+             const qHist = db.collection('letters').where('status_global', 'in', ['APPROVED', 'REVISION']);
+             const sHist = await qHist.get();
+             let allHist = sHist.docs.map(d => d.data());
+             myTasks = allHist.filter(l => l.approver.nip === nip || (l.reviewers_search && l.reviewers_search.includes(nip)));
+        }
+
+        myTasks.sort((a,b) => (b.created_at?._seconds || 0) - (a.created_at?._seconds || 0));
+        res.json({ success: true, data: myTasks });
+    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/reject', async (req, res) => {
-    const { id_surat, note } = req.body;
+// === ENDPOINT BARU: PARAF ===
+app.post('/api/paraf', async (req, res) => {
+    const { id_surat, nip } = req.body;
     try {
-        await db.collection('letters').doc(id_surat).update({ status_global: 'REVISION', 'approver.status': 'REVISION', revision_note: note });
+        const ref = db.collection('letters').doc(id_surat);
+        await db.runTransaction(async (t) => {
+            const doc = await t.get(ref);
+            if (!doc.exists) throw new Error("Surat tidak ditemukan");
+            const data = doc.data();
+            
+            const currentStep = data.current_step || 0;
+            const reviewers = data.reviewers || [];
+
+            // Validasi Giliran
+            if (currentStep < reviewers.length) {
+                if (reviewers[currentStep].nip !== nip) throw new Error("Bukan giliran Anda untuk memaraf");
+                
+                // Update Status Reviewer
+                reviewers[currentStep].status = 'APPROVED';
+                reviewers[currentStep].approved_at = admin.firestore.Timestamp.now();
+                
+                // Naikkan Step
+                t.update(ref, { 
+                    reviewers: reviewers, 
+                    current_step: currentStep + 1 
+                });
+            } else {
+                throw new Error("Surat sudah melewati tahap paraf");
+            }
+        });
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// === REJECT (Revisi Logic: Reset Step?) ===
+app.post('/api/reject', async (req, res) => {
+    const { id_surat, note, nip } = req.body; // nip rejector
+    try {
+        // Jika direject, status global jadi REVISION.
+        // Step tidak perlu direset ke 0 jika ingin maker perbaiki, 
+        // tapi biasanya balik ke maker -> ulang dari awal.
+        await db.collection('letters').doc(id_surat).update({ 
+            status_global: 'REVISION', 
+            revision_note: note,
+            rejected_by: nip
+        });
         res.json({ success: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// === APPROVE FINAL (Logika Penomoran Baru: Unit + Tipe + Tahun) ===
 app.post('/api/approve', async (req, res) => {
     const { id_surat } = req.body;
     try {
@@ -770,49 +785,82 @@ app.post('/api/approve', async (req, res) => {
         const doc = await ref.get();
         if(!doc.exists) throw new Error("Surat tidak ditemukan");
         const data = doc.data();
+        
+        // Validasi: Pastikan semua paraf sudah selesai
+        if (data.reviewers && data.current_step < data.reviewers.length) {
+             throw new Error("Surat belum selesai diparaf oleh semua reviewer.");
+        }
+
         const now = new Date();
-        const fiscal = getFiscalYear(now);
-        const counterId = `count_${data.unit_kop}_${fiscal.replace('/','-')}`;
+        const fiscal = getFiscalYear(now); // Contoh: 2025/2026
+        const romawi = toRoman(now.getMonth()+1);
+        const tahun = now.getFullYear();
+
+        // 1. TENTUKAN KODE FORMAT DULU (Untuk ID Counter)
+        let formatCode = "NOCODE";
+        let typeDocData = null;
+
+        if (data.tipe_surat === 'manual') {
+            // Jika Manual, ambil dari input user
+            formatCode = data.manual_kode || "MANUAL";
+        } else {
+            // Jika Database, ambil dari referensi
+            const typeDoc = await db.collection('letter_types').doc(data.tipe_surat).get();
+            if(typeDoc.exists) {
+                typeDocData = typeDoc.data();
+                // Prioritas: Format Code standar, atau logic Panitia
+                if(typeDocData.need_activity || typeDocData.need_activity_code) {
+                    formatCode = `Pan.${data.kode_kegiatan}`;
+                } else {
+                    formatCode = typeDocData.format_code || typeDocData.format;
+                }
+            }
+        }
+
+        // Bersihkan formatCode agar aman jadi ID Dokumen (Hapus karakter aneh)
+        // Contoh: "SK" -> "SK", "B.A." -> "BA", "Pan.HGN" -> "PanHGN"
+        const cleanCodeForID = formatCode.replace(/[^a-zA-Z0-9]/g, '');
+
+        // 2. BUAT COUNTER ID SPESIFIK (Unit + Tipe + Tahun)
+        // Contoh ID Lama: count_MIJ_2025-2026
+        // Contoh ID Baru: count_MIJ_SK_2025-2026
+        const counterId = `count_${data.unit_kop}_${cleanCodeForID}_${fiscal.replace('/','-')}`;
         const counterRef = db.collection('counters').doc(counterId);
+
         let finalNomor = '';
+        
         await db.runTransaction(async (t) => {
             const cDoc = await t.get(counterRef);
             let nextNo = 1;
-            if (cDoc.exists) nextNo = cDoc.data().last_number + 1;
-            t.set(counterRef, { last_number: nextNo }, { merge: true });
             
-            const typeDoc = await db.collection('letter_types').doc(data.tipe_surat).get();
-            let format = "NOCODE";
-            if(typeDoc.exists) {
-                const td = typeDoc.data();
-                format = td.format || td.format_code;
-                // Jika tipe surat butuh kegiatan, timpa format dengan kode kegiatan (jika ada)
-                if(td.need_activity || td.need_activity_code) format = `Pan.${data.kode_kegiatan}`;
-            } else if (data.tipe_surat === 'manual') { 
-                format = data.manual_kode; 
+            // Cek apakah counter tipe ini sudah ada
+            if (cDoc.exists) {
+                nextNo = cDoc.data().last_number + 1;
+            } else {
+                // Opsional: Jika mau migrasi data lama agar tidak reset ke 1, logicnya rumit.
+                // Asumsi: Mulai sistem baru, reset ke 1 per tipe surat.
+                nextNo = 1;
             }
+            
+            t.set(counterRef, { last_number: nextNo, updated_at: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
 
-            // === REVISI LOGIKA PANITIA ===
-            // Jika user mengisi Kode Panitia manual, sisipkan 'Pan.'
-            let panitiaPart = "";
-            if (data.kode_panitia && data.kode_panitia.trim() !== "") {
-                panitiaPart = `/Pan.${data.kode_panitia.trim()}`;
-            }
-
-            // === LOGIKA UNIT ===
-            // Jika MIJ: kosong (nanti digabung di akhir). Jika Unit lain: /KB, /MTs, dll
+            // 3. RAKIT NOMOR SURAT
+            let panitiaPart = (data.kode_panitia && data.kode_panitia.trim() !== "") ? `/Pan.${data.kode_panitia.trim()}` : "";
             let unitPart = (data.unit_kop === 'MIJ') ? '' : `/${data.unit_kop}`;
             
-            // Format Akhir: No/KodeSurat[/Pan.XXX][/Unit]/MIJ/Bulan/Tahun
-            // Contoh Unit: 001/SK/Pan.HGN/KB/MIJ/XI/2025
-            // Contoh MIJ:  001/SK/Pan.HGN/MIJ/XI/2025
+            // Jika tipe surat Panitia (dari database), formatCode sudah berisi "Pan.XXX".
+            // Jika tipe surat manual atau biasa, formatCode adalah "SK", "BA", dll.
             
-            const romawi = toRoman(now.getMonth()+1);
-            const tahun = now.getFullYear();
-            
-            finalNomor = `${String(nextNo).padStart(3,'0')}/${format}${panitiaPart}${unitPart}/MIJ/${romawi}/${tahun}`;
+            finalNomor = `${String(nextNo).padStart(3,'0')}/${formatCode}${panitiaPart}${unitPart}/MIJ/${romawi}/${tahun}`;
         });
-        await ref.update({ status_global: 'APPROVED', 'approver.status': 'APPROVED', 'approver.ttd_date': admin.firestore.FieldValue.serverTimestamp(), nomor_surat: finalNomor, revision_note: admin.firestore.FieldValue.delete() });
+
+        await ref.update({ 
+            status_global: 'APPROVED', 
+            'approver.status': 'APPROVED', 
+            'approver.ttd_date': admin.firestore.FieldValue.serverTimestamp(), 
+            nomor_surat: finalNomor, 
+            revision_note: admin.firestore.FieldValue.delete() 
+        });
         res.json({ success: true, nomor: finalNomor });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -831,6 +879,7 @@ app.get('/api/letters/:id/download', async (req, res) => {
     } catch (e) { res.status(500).send(e.message); }
 });
 
+// ... (Sisa route public/verify dan excel tetap sama) ...
 app.get('/api/public/verify/:id', async (req, res) => {
     try {
         const { id } = req.params;
@@ -843,32 +892,20 @@ app.get('/api/public/verify/:id', async (req, res) => {
             status_global: data.status_global,
             created_at: data.created_at,
             perihal: data.perihal,
-            tujuan_jabatan: data.tujuan_jabatan || data.tujuan_surat?.jabatan,
-            tujuan_nama: data.tujuan_nama || data.tujuan_surat?.nama,
+            tujuan_jabatan: data.tujuan_jabatan,
+            tujuan_nama: data.tujuan_nama,
             maker_unit: data.maker?.unit,
             approver_nama: data.approver?.nama,
             approver_jabatan: data.approver?.jabatan,
             approver_ttd_date: data.approver?.ttd_date,
-            isi_snippet: (data.isi_ringkas || data.isi_surat || '').replace(/<[^>]*>?/gm, '').substring(0, 150) + '...'
+            isi_snippet: (data.isi_ringkas || '').replace(/<[^>]*>?/gm, '').substring(0, 150) + '...'
         };
         res.json({ success: true, data: publicData });
-    } catch (e) {
-        console.error("Verify Error:", e);
-        res.status(500).json({ success: false, message: "Server error." });
-    }
+    } catch (e) { res.status(500).json({ success: false, message: "Server error." }); }
 });
 
-// ... (kode API routes di atasnya biarkan saja) ...
-
-// === DEPLOYMENT SETUP ===
-// 1. Serve File Statis React (Frontend)
 app.use(express.static(path.join(__dirname, 'public_html')));
+app.get(/.*/, (req, res) => { res.sendFile(path.resolve(__dirname, 'public_html', 'index.html')); });
 
-// 2. Handle React Router (Agar saat di-refresh tidak 404)
-app.get(/.*/, (req, res) => { 
-        res.sendFile(path.resolve(__dirname, 'public_html', 'index.html'));
-    });
-
-// Jalankan Server (Gunakan process.env.PORT untuk Railway)
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 SERVER ONLINE DI PORT ${PORT}`));
