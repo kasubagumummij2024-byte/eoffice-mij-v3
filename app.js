@@ -191,7 +191,7 @@ async function stampPDF(originalPdfBase64, stampData) {
             const sizeDisc = 8;
             const textWidth = fontOblique.widthOfTextAtSize(textDisclaimer, sizeDisc);
             const xDisc = (pageWidth - textWidth) / 2; 
-            const yDisc = 70; // Posisi Aman (Naik)
+            const yDisc = 29; // Posisi Aman (Naik)
 
             firstPage.drawText(textDisclaimer, {
                 x: xDisc, y: yDisc, size: sizeDisc, font: fontOblique, color: rgb(0.4, 0.4, 0.4), 
