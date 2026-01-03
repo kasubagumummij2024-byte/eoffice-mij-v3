@@ -73,7 +73,7 @@ const imgToBase64 = (relativePath) => {
     } catch (e) { return null; }
 };
 
-// === 1. FUNGSI STAMPING (UPLOAD MODE - FINAL ANTI-GAGAL) ===
+// === 1. FUNGSI STAMPING (UPLOAD MODE - SUPPORT ALAT STEMPEL) ===
 async function stampPDF(originalPdfBase64, stampData) {
     const cleanBase64 = (str) => {
         if (!str || typeof str !== 'string') return null;
@@ -81,9 +81,12 @@ async function stampPDF(originalPdfBase64, stampData) {
     };
 
     try {
-        // Ambil data. Jika locations kosong, inisialisasi array kosong agar bisa kita isi default nanti
         let { nomor_surat, qr_data, locations, lampiran, render_width, reviewers, is_approved } = stampData;
+        
+        // Pastikan locations adalah array
         if (!locations) locations = [];
+
+        console.log(`[StampPDF] Memproses ${locations.length} titik stempel...`); // DEBUG LOG
 
         const mainPdfStr = cleanBase64(originalPdfBase64);
         if (!mainPdfStr) throw new Error("File PDF Utama Kosong/Corrupt");
@@ -94,36 +97,9 @@ async function stampPDF(originalPdfBase64, stampData) {
         const firstPage = pages[0]; 
         const { width: pageWidth, height: pageHeight } = firstPage.getSize();
 
-        // --- 1. LOGIKA DEFAULT (FALLBACK) ---
-        // Jika User LUPA drag-drop posisi (locations kosong), kita isi paksa posisi defaultnya.
-        if (locations.length === 0) {
-            console.log("⚠️ Warning: Locations kosong. Menggunakan posisi default.");
-            
-            // Default Posisi Nomor (Kiri Atas, di bawah Header)
-            // Asumsi Frontend mengirim koordinat Y dari atas. Kita simulasikan.
-            locations.push({
-                type: 'nomor',
-                pageIndex: 0,
-                x: 60,   // Jarak dari kiri
-                y: 130,  // Jarak dari ATAS (simulasi koordinat frontend)
-                w: 200, 
-                h: 20
-            });
-
-            // Default Posisi QR (Kanan Bawah, area TTD)
-            locations.push({
-                type: 'qr',
-                pageIndex: 0,
-                x: 420,  // Jarak dari kiri
-                y: 650,  // Jarak dari ATAS (Makin besar makin ke bawah)
-                w: 80, 
-                h: 80
-            });
-        }
-
-        // --- 2. GENERATE QR IMAGE ---
+        // 1. GENERATE QR CODE (Hanya jika linknya valid)
         let qrImage = null;
-        if (qr_data) {
+        if (qr_data && qr_data !== 'null') {
             try {
                 const canvasSize = 300; 
                 const canvas = createCanvas(canvasSize, canvasSize);
@@ -147,58 +123,62 @@ async function stampPDF(originalPdfBase64, stampData) {
         const fontReg = await pdfDoc.embedFont('Helvetica');
         const fontOblique = await pdfDoc.embedFont('Helvetica-Oblique');
 
-        // --- 3. GAMBAR STAMP UTAMA (LOOPING) ---
+        // 2. PROSES KOORDINAT DARI ALAT STEMPEL (FRONTEND)
         for (const loc of locations) {
             try {
-                const pageIdx = parseInt(loc.pageIndex);
-                if (isNaN(pageIdx) || pageIdx < 0 || pageIdx >= pages.length) continue;
+                // Ambil Page Index (Default halaman 1 / index 0 jika tidak ada)
+                const pageIdx = parseInt(loc.pageIndex) || 0;
+                if (pageIdx < 0 || pageIdx >= pages.length) continue;
+                
                 const targetPage = pages[pageIdx];
                 const { width: pgW, height: pgH } = targetPage.getSize();
                 
-                // Kalkulasi Skala & Posisi
-                // Jika render_width tidak dikirim frontend, anggap 600px (ukuran standar canvas preview)
+                // Kalkulasi Skala (PENTING AGAR POSISI TIDAK LARI)
+                // Jika render_width kosong, kita asumsikan 600px (lebar standar canvas preview)
                 const safeWidth = (parseFloat(render_width) > 50) ? parseFloat(render_width) : 600; 
                 const scale = pgW / safeWidth;
                 
+                // Koordinat & Dimensi
                 const finalW = (parseFloat(loc.w) || 80) * scale;
                 const finalH = (parseFloat(loc.h) || 80) * scale;
                 const finalX = (parseFloat(loc.x) || 0) * scale;
                 
-                // Konversi Koordinat Y:
-                // PDF (0,0 ada di Bawah-Kiri) vs Web (0,0 ada di Atas-Kiri)
-                // Rumus: PageHeight - (Y_Dari_Atas * Scale) - Tinggi_Objek
+                // Konversi Y: Web (0 di Atas) -> PDF (0 di Bawah)
                 const finalY = pgH - ((parseFloat(loc.y) || 0) * scale) - finalH; 
+
+                // Normalisasi Tipe (biar huruf besar/kecil tidak masalah)
+                const type = (loc.type || '').toLowerCase();
                 
-                if (loc.type === 'qr' && qrImage) {
+                console.log(` -> Stamping [${type}] di Hal:${pageIdx} (x:${finalX.toFixed(0)}, y:${finalY.toFixed(0)})`); // DEBUG LOG
+
+                if (type.includes('qr') && qrImage) {
                     targetPage.drawImage(qrImage, { x: finalX, y: finalY, width: finalW, height: finalH });
-                } else if (loc.type === 'nomor') {
-                    // Font size menyesuaikan tinggi kotak
-                    let fontSize = Math.floor(finalH * 0.65);
-                    if(fontSize < 9) fontSize = 9; 
+                } 
+                else if (type.includes('nomor') || type.includes('number')) {
+                    // Font size menyesuaikan tinggi kotak, minimal 9pt
+                    let fontSize = Math.floor(finalH * 0.60);
+                    if(fontSize < 9) fontSize = 9;
+                    if(fontSize > 14) fontSize = 14; 
                     
                     targetPage.drawText(String(nomor_surat || '-'), { 
                         x: finalX, 
-                        y: finalY + (finalH * 0.25), 
+                        y: finalY + (finalH * 0.25), // Sedikit padding biar di tengah vertikal
                         size: fontSize, 
                         font: fontBold, 
                         color: rgb(0,0,0) 
                     });
                 }
-            } catch (errStamp) { console.log("Stamp Loop Error:", errStamp); }
+            } catch (errStamp) { console.log("Loop Error:", errStamp); }
         }
 
-        // --- 4. GAMBAR ELEMENT TAMBAHAN (Disclaimer & Pemaraf) ---
-        // Kita gambar LANGSUNG (Hardcode Posisi) di bagian bawah halaman pertama
-        
+        // 3. ELEMEN FIX: DISCLAIMER & PEMARAF (Otomatis di Bawah)
         if (is_approved) {
-            // A. DISCLAIMER (DIGITAL SIGNATURE)
-            // Posisi: Tengah Bawah. 
-            // y = 70 (Naikkan lagi dari 50 agar makin aman dari footer)
+            // A. DISCLAIMER (DIGITAL SIGNATURE) - Posisi Aman
             const textDisclaimer = "Dokumen ini telah ditandatangani secara elektronik (Digital Signature) | Validitas dokumen dapat dicek melalui QR Code di atas.";
             const sizeDisc = 8;
             const textWidth = fontOblique.widthOfTextAtSize(textDisclaimer, sizeDisc);
             const xDisc = (pageWidth - textWidth) / 2; // Center
-            const yDisc = 20; 
+            const yDisc = 30; // Tinggi aman dari footer
 
             firstPage.drawText(textDisclaimer, {
                 x: xDisc,
@@ -208,12 +188,10 @@ async function stampPDF(originalPdfBase64, stampData) {
                 color: rgb(0.4, 0.4, 0.4), 
             });
 
-            // B. DAFTAR PEMARAF (REVIEWERS)
-            // Posisi: Tepat di atas Disclaimer (yDisc + 15)
+            // B. DAFTAR PEMARAF (REVIEWERS) - Di atas Disclaimer
             if (reviewers && Array.isArray(reviewers) && reviewers.length > 0) {
                 const approvedReviewers = reviewers.filter(r => r.status === 'APPROVED');
                 if (approvedReviewers.length > 0) {
-                    // Ambil nama saja
                     const names = approvedReviewers.map(r => `[ ${r.nama} ]`).join(' / ');
                     const textParaf = `Paraf Koordinasi: ${names}`;
                     const sizeParaf = 8;
@@ -231,19 +209,14 @@ async function stampPDF(originalPdfBase64, stampData) {
                 }
             }
         } else {
-            // JIKA DRAFT: Tampilkan watermark Draft Merah Besar
+            // MODE DRAFT
             const textDraft = "DRAFT - PREVIEW MODE";
-            const widthDraft = fontBold.widthOfTextAtSize(textDraft, 18);
-             firstPage.drawText(textDraft, {
-                x: (pageWidth - widthDraft) / 2,
-                y: pageHeight - 50, // Di Atas
-                size: 18,
-                font: fontBold,
-                color: rgb(1, 0, 0), 
+            firstPage.drawText(textDraft, {
+                x: 20, y: pageHeight - 40, size: 18, font: fontBold, color: rgb(1, 0, 0), 
             });
         }
 
-        // 5. MERGE LAMPIRAN
+        // 4. MERGE LAMPIRAN
         if (lampiran && Array.isArray(lampiran)) {
             for (const att of lampiran) {
                 try {
@@ -260,11 +233,7 @@ async function stampPDF(originalPdfBase64, stampData) {
         }
 
         return Buffer.from(await pdfDoc.save());
-
-    } catch (e) { 
-        console.error("Stamp Error:", e);
-        throw new Error("Gagal memproses PDF: " + e.message); 
-    }
+    } catch (e) { throw new Error("Gagal memproses PDF: " + e.message); }
 }
 
 // === 2. MAIN PDF GENERATOR (WEB MODE - HTML) ===
