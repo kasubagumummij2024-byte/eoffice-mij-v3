@@ -73,7 +73,7 @@ const imgToBase64 = (relativePath) => {
     } catch (e) { return null; }
 };
 
-// === 1. FUNGSI STAMPING (UPLOAD MODE - SUPPORT ALAT STEMPEL) ===
+// === 1. FUNGSI STAMPING (HYBRID: SUPPORT ALAT STEMPEL + AUTO DEFAULT) ===
 async function stampPDF(originalPdfBase64, stampData) {
     const cleanBase64 = (str) => {
         if (!str || typeof str !== 'string') return null;
@@ -83,10 +83,27 @@ async function stampPDF(originalPdfBase64, stampData) {
     try {
         let { nomor_surat, qr_data, locations, lampiran, render_width, reviewers, is_approved } = stampData;
         
-        // Pastikan locations adalah array
+        // 1. DATA CLEANING & HYBRID LOGIC
         if (!locations) locations = [];
 
-        console.log(`[StampPDF] Memproses ${locations.length} titik stempel...`); // DEBUG LOG
+        // === KUNCI PERBAIKAN: JIKA KOSONG, ISI DENGAN DEFAULT ===
+        if (locations.length === 0) {
+            console.log("⚠️ [StampPDF] Tidak ada koordinat Frontend. Menggunakan POSISI DEFAULT.");
+            
+            // Default Nomor (Kiri Atas)
+            locations.push({
+                type: 'nomor', pageIndex: 0,
+                x: 60, y: 130, w: 200, h: 20
+            });
+
+            // Default QR (Kanan Bawah)
+            locations.push({
+                type: 'qr', pageIndex: 0,
+                x: 420, y: 650, w: 80, h: 80
+            });
+        } else {
+            console.log(`✅ [StampPDF] Menggunakan ${locations.length} titik koordinat dari Frontend.`);
+        }
 
         const mainPdfStr = cleanBase64(originalPdfBase64);
         if (!mainPdfStr) throw new Error("File PDF Utama Kosong/Corrupt");
@@ -97,7 +114,7 @@ async function stampPDF(originalPdfBase64, stampData) {
         const firstPage = pages[0]; 
         const { width: pageWidth, height: pageHeight } = firstPage.getSize();
 
-        // 1. GENERATE QR CODE (Hanya jika linknya valid)
+        // 2. GENERATE QR CODE IMAGE
         let qrImage = null;
         if (qr_data && qr_data !== 'null') {
             try {
@@ -123,72 +140,64 @@ async function stampPDF(originalPdfBase64, stampData) {
         const fontReg = await pdfDoc.embedFont('Helvetica');
         const fontOblique = await pdfDoc.embedFont('Helvetica-Oblique');
 
-        // 2. PROSES KOORDINAT DARI ALAT STEMPEL (FRONTEND)
+        // 3. PROSES STAMPING (LOOPING LOCATION)
         for (const loc of locations) {
             try {
-                // Ambil Page Index (Default halaman 1 / index 0 jika tidak ada)
                 const pageIdx = parseInt(loc.pageIndex) || 0;
                 if (pageIdx < 0 || pageIdx >= pages.length) continue;
                 
                 const targetPage = pages[pageIdx];
                 const { width: pgW, height: pgH } = targetPage.getSize();
                 
-                // Kalkulasi Skala (PENTING AGAR POSISI TIDAK LARI)
-                // Jika render_width kosong, kita asumsikan 600px (lebar standar canvas preview)
+                // Kalkulasi Skala
                 const safeWidth = (parseFloat(render_width) > 50) ? parseFloat(render_width) : 600; 
                 const scale = pgW / safeWidth;
                 
-                // Koordinat & Dimensi
                 const finalW = (parseFloat(loc.w) || 80) * scale;
                 const finalH = (parseFloat(loc.h) || 80) * scale;
                 const finalX = (parseFloat(loc.x) || 0) * scale;
                 
-                // Konversi Y: Web (0 di Atas) -> PDF (0 di Bawah)
+                // Y Frontend (0 di atas) ke Y PDF (0 di bawah)
+                // Jika Default, asumsinya loc.y sudah dalam koordinat 'visual' dari atas
                 const finalY = pgH - ((parseFloat(loc.y) || 0) * scale) - finalH; 
 
-                // Normalisasi Tipe (biar huruf besar/kecil tidak masalah)
                 const type = (loc.type || '').toLowerCase();
                 
-                console.log(` -> Stamping [${type}] di Hal:${pageIdx} (x:${finalX.toFixed(0)}, y:${finalY.toFixed(0)})`); // DEBUG LOG
-
+                // Logic Draw QR
                 if (type.includes('qr') && qrImage) {
                     targetPage.drawImage(qrImage, { x: finalX, y: finalY, width: finalW, height: finalH });
                 } 
+                // Logic Draw Nomor
                 else if (type.includes('nomor') || type.includes('number')) {
-                    // Font size menyesuaikan tinggi kotak, minimal 9pt
                     let fontSize = Math.floor(finalH * 0.60);
                     if(fontSize < 9) fontSize = 9;
                     if(fontSize > 14) fontSize = 14; 
                     
                     targetPage.drawText(String(nomor_surat || '-'), { 
                         x: finalX, 
-                        y: finalY + (finalH * 0.25), // Sedikit padding biar di tengah vertikal
+                        y: finalY + (finalH * 0.25), 
                         size: fontSize, 
                         font: fontBold, 
                         color: rgb(0,0,0) 
                     });
                 }
-            } catch (errStamp) { console.log("Loop Error:", errStamp); }
+            } catch (errStamp) { console.log("Loop Stamp Error:", errStamp); }
         }
 
-        // 3. ELEMEN FIX: DISCLAIMER & PEMARAF (Otomatis di Bawah)
+        // 4. ELEMENT FIX (DISCLAIMER & PEMARAF) - SELALU MUNCUL
         if (is_approved) {
-            // A. DISCLAIMER (DIGITAL SIGNATURE) - Posisi Aman
+            // A. DISCLAIMER (DIGITAL SIGNATURE)
             const textDisclaimer = "Dokumen ini telah ditandatangani secara elektronik (Digital Signature) | Validitas dokumen dapat dicek melalui QR Code di atas.";
             const sizeDisc = 8;
             const textWidth = fontOblique.widthOfTextAtSize(textDisclaimer, sizeDisc);
-            const xDisc = (pageWidth - textWidth) / 2; // Center
-            const yDisc = 30; // Tinggi aman dari footer
+            const xDisc = (pageWidth - textWidth) / 2; 
+            const yDisc = 70; // Posisi Aman (Naik)
 
             firstPage.drawText(textDisclaimer, {
-                x: xDisc,
-                y: yDisc,
-                size: sizeDisc,
-                font: fontOblique,
-                color: rgb(0.4, 0.4, 0.4), 
+                x: xDisc, y: yDisc, size: sizeDisc, font: fontOblique, color: rgb(0.4, 0.4, 0.4), 
             });
 
-            // B. DAFTAR PEMARAF (REVIEWERS) - Di atas Disclaimer
+            // B. DAFTAR PEMARAF
             if (reviewers && Array.isArray(reviewers) && reviewers.length > 0) {
                 const approvedReviewers = reviewers.filter(r => r.status === 'APPROVED');
                 if (approvedReviewers.length > 0) {
@@ -196,15 +205,11 @@ async function stampPDF(originalPdfBase64, stampData) {
                     const textParaf = `Paraf Koordinasi: ${names}`;
                     const sizeParaf = 8;
                     const textWidthParaf = fontReg.widthOfTextAtSize(textParaf, sizeParaf);
-                    const xParaf = (pageWidth - textWidthParaf) / 2; // Center
+                    const xParaf = (pageWidth - textWidthParaf) / 2; 
                     const yParaf = yDisc + 15; 
 
                     firstPage.drawText(textParaf, {
-                        x: xParaf,
-                        y: yParaf,
-                        size: sizeParaf,
-                        font: fontReg,
-                        color: rgb(0.2, 0.2, 0.2), 
+                        x: xParaf, y: yParaf, size: sizeParaf, font: fontReg, color: rgb(0.2, 0.2, 0.2), 
                     });
                 }
             }
@@ -216,7 +221,7 @@ async function stampPDF(originalPdfBase64, stampData) {
             });
         }
 
-        // 4. MERGE LAMPIRAN
+        // 5. MERGE LAMPIRAN
         if (lampiran && Array.isArray(lampiran)) {
             for (const att of lampiran) {
                 try {
