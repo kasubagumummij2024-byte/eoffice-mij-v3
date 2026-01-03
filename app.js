@@ -145,7 +145,7 @@ async function stampPDF(originalPdfBase64, stampData) {
                 const font = await pdfDoc.embedFont('Helvetica-Oblique');
                 const firstPage = pages[0];
                 const { width } = firstPage.getSize();
-                const text = "Dokumen ini telah ditandatangani secara elektronik (Digital Signature)";
+                const text = "Dokumen ini tidak valid";
                 const textSize = 9;
                 const textWidth = font.widthOfTextAtSize(text, textSize);
                 
@@ -238,7 +238,7 @@ async function createPDFBuffer(data) {
         let tembusanHtml = '';
         if (data.tembusan && data.tembusan.length > 0) {
             tembusanHtml = `
-            <div style="margin-top: 1em; font-size: 10pt;">
+            <div style="margin-top: 5px; font-size: 10pt;">
                 <b style="text-decoration: underline;">Tembusan:</b>
                 <ol style="margin-top: 0.2em; padding-left: 20px; margin-bottom: 0;">
                     ${data.tembusan.map(t => `<li style="padding-left: 5px;">${t}</li>`).join('')}
@@ -252,28 +252,24 @@ async function createPDFBuffer(data) {
              const approvedReviewers = data.reviewers.filter(r => r.status === 'APPROVED');
              if(approvedReviewers.length > 0) {
                 parafHtml = `
-                <div style="margin-top: 1em; font-size: 9pt; color: #555; border-top: 1px dashed #ccc; padding-top: 5px;">
-                    <b>Diparaf Oleh:</b>
-                    <ul style="margin: 0; padding-left: 20px;">
+                <div style="margin-top: 15px; font-size: 9pt; color: #555; text-align: left;">
+                    <b>Paraf Koordinasi:</b>
+                    <span style="margin-left: 5px;">
                         ${approvedReviewers.map(r => {
-                            let tglParaf = '-';
-                            if(r.approved_at && r.approved_at._seconds) {
-                                tglParaf = new Date(r.approved_at._seconds * 1000).toLocaleDateString('id-ID');
-                            }
-                            return `<li>${r.nama} (${r.jabatan}) - ${tglParaf}</li>`;
-                        }).join('')}
-                    </ul>
+                            return `[ ${r.nama} ] `;
+                        }).join(' / ')}
+                    </span>
                 </div>
                 `;
              }
         }
 
-        // --- WATERMARK TEKS ---
+        // --- WATERMARK DIGITAL SIGNATURE (UPDATED) ---
         let watermarkHtml = '';
         if(isApproved) {
             watermarkHtml = `
-            <div style="margin-top: 15px; font-size: 8pt; color: #888; text-align: center; border-top: 1px solid #ddd; padding-top: 5px;">
-                <i>Surat ini ditandatangani secara elektronik (Digital Signature) | Validitas dokumen dapat dicek melalui QR Code di atas.</i>
+            <div class="footer-disclaimer">
+                <i>Dokumen ini telah ditandatangani secara elektronik (Digital Signature) | Validitas dokumen dapat dicek melalui QR Code di atas.</i>
             </div>
             `;
         }
@@ -281,65 +277,70 @@ async function createPDFBuffer(data) {
         let ttdVisual = isApproved && qrBase64 
             ? `<img src="${qrBase64}" style="width: 80px; height: 80px;">` 
             : `<div style="width: 100px; height: 60px; border: 2px dashed #999; display: flex; align-items: center; justify-content: center; color: #999; font-size: 0.8em; font-weight: bold;">DRAFT TTD</div>`;
-
-        // --- HTML CONTENT ---
+            // --- HTML CONTENT (REVISI CSS LENGKAP) ---
         const htmlContent = `<!DOCTYPE html>
         <html>
         <head>
             <style>
-                * { font-family: 'Trebuchet MS', sans-serif !important; box-sizing: border-box; }
+                * { font-family: 'Times New Roman', serif !important; box-sizing: border-box; }
                 @page { size: 215mm 330mm; margin: 0; }
                 body { margin: 0; padding: 0; font-size: 12pt; line-height: 1.35; color: #000; background: #fff; }
-                .page-content { padding: 5px 25mm 30mm 25mm; position: relative; z-index: 10; min-height: 90vh; }
+                
+                /* REVISI PENTING: Padding Bottom diperbesar (40mm) agar konten berhenti JAUH sebelum footer */
+                .page-content { 
+                    padding: 5px 25mm 40mm 25mm; 
+                    position: relative; 
+                    z-index: 10; 
+                    min-height: 85vh; 
+                }
+                
                 .header-img { width: 100%; display: block; margin-bottom: 0; }
                 .footer-img { position: fixed; bottom: 0; left: 0; width: 100%; z-index: -10; }
+                
                 .content { text-align: justify; font-size: inherit; width: 100%; }
-                .content h1, .content h2, .content h3, .content span, .content div { font-size: inherit !important; font-weight: normal; margin: 0; line-height: inherit; }
-                .content b, .content strong { font-weight: bold; }
-                .content p { margin-top: 0; margin-bottom: 0.6em; text-indent: 0px; line-height: inherit; }
-                .content ol, .content ul { margin: 0 0 0.6em 0; padding-left: 35px; }
-                .content table { width: 100% !important; margin: 0.5em 0; border-collapse: collapse; font-size: inherit; }
-                .content table td { padding: 2px 4px; vertical-align: top; border: none; }
-                .content table tr td:first-child { width: 50px; white-space: nowrap; }
-                .content table[border="1"] td { border: 1px solid #000; }
-                .date-table { float: right; border-collapse: collapse; margin-bottom: 0.5em; font-size: inherit; }
-                .date-table td { padding: 0; vertical-align: top; text-align: right; }
-                .hijri-row { border-bottom: 1px solid #000; display: inline-block; min-width: 120px; }
-                .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 1.2em; font-size: inherit; }
-                .meta-table td { vertical-align: top; padding: 0px 0; }
-                .signature-wrapper { margin-top: 2em; page-break-inside: avoid; width: 100%; font-size: inherit; }
+                .content p { margin-top: 0; margin-bottom: 0.8em; text-indent: 40px; }
+                .content ol, .content ul { margin: 0 0 0.8em 0; padding-left: 45px; }
+                
+                .content table { width: 100% !important; margin: 0.5em 0; border-collapse: collapse; }
+                .content table td { padding: 2px 4px; vertical-align: top; }
+
+                .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 1.5em; }
+                .meta-table td { vertical-align: top; padding: 1px 0; }
+                
+                .signature-wrapper { margin-top: 2em; page-break-inside: avoid; width: 100%; }
                 .signature-table { width: 100%; border: none; }
                 .ttd-col { text-align: center; padding-left: 10px; }
-                .ttd-space { height: 5.5em; display: flex; align-items: center; justify-content: center; }
+                .ttd-space { height: 6em; display: flex; align-items: center; justify-content: center; }
+                
+                /* REVISI PENTING: Margin & Positioning Disclaimer */
+                .footer-disclaimer {
+                    margin-top: 20px; 
+                    font-size: 8pt; 
+                    color: #888; 
+                    text-align: center; 
+                    border-top: 1px solid #ddd; 
+                    padding-top: 5px;
+                    
+                    /* Angkat sedikit dan beri background putih transparan */
+                    position: relative;
+                    top: -10px; 
+                    background-color: rgba(255,255,255,0.8);
+                }
+
                 .clearfix::after { content: ""; clear: both; display: table; }
             </style>
         </head>
         <body>
             <img src="${kop}" class="header-img">
+            
             <div class="page-content">
                 <div class="clearfix">
-                    <table class="date-table">
-                        <tr>
-                            <td rowspan="2" style="padding-right: 10px; vertical-align: top;">Jakarta, </td>
-                            <td>
-                                <div class="hijri-row">
-                                    <span style="float:left;">${tglHijriParts.dateStr}</span>
-                                    <span style="float:right;">${tglHijriParts.yearStr}</span>
-                                    <div style="clear:both;"></div>
-                                </div>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                <div style="min-width: 120px;">
-                                    <span style="float:left;">${tglMasehiParts.dateStr}</span>
-                                    <span style="float:right;">${tglMasehiParts.yearStr}</span>
-                                    <div style="clear:both;"></div>
-                                </div>
-                            </td>
-                        </tr>
-                    </table>
+                    <div style="float: right; text-align: right;">
+                        Jakarta, ${tglMasehiParts.dateStr} ${tglMasehiParts.yearStr}<br>
+                        ${tglHijriParts.dateStr} ${tglHijriParts.yearStr}
+                    </div>
                 </div>
+                <div style="clear:both; margin-bottom: 20px;"></div>
 
                 <table class="meta-table">
                     <tr><td style="width:90px;">Nomor</td><td style="width:10px;">:</td><td>${nomorSurat}</td></tr>
@@ -347,7 +348,7 @@ async function createPDFBuffer(data) {
                     <tr><td>Perihal</td><td>:</td><td style="font-weight:bold;">${data.perihal}</td></tr>
                 </table>
 
-                <div style="margin-bottom: 1.2em;">
+                <div style="margin-bottom: 1.5em;">
                     Kepada Yth.<br/>
                     <b>${data.tujuan_jabatan||''}</b><br/>
                     ${data.tujuan_nama||''}<br/>
@@ -363,20 +364,26 @@ async function createPDFBuffer(data) {
                         <tr>
                             <td style="width:50%; vertical-align:top; padding-right:15px;">
                                 ${tembusanHtml}
-                                ${parafHtml} </td>
+                            </td>
                             <td style="width:50%; vertical-align:top;">
                                 <div class="ttd-col">
-                                    <div>Hormat Kami,</div>
+                                    <div style="margin-bottom: 5px;">Hormat Kami,</div>
                                     <div style="font-weight:bold; margin-bottom:0.2em;">${data.approver?.jabatan||'Pejabat'}</div>
                                     <div class="ttd-space">${ttdVisual}</div>
-                                    <div style="font-weight:bold; text-decoration:underline;">${data.approver?.nama||'Nama'}</div>
-                                    <div>NIP. ${data.approver?.nip||'-'}</div>
+                                    <div style="font-weight:bold; text-decoration:underline; margin-top:5px;">${data.approver?.nama||'Nama'}</div>
+                                    ${data.approver?.nip ? `<div>NIP. ${data.approver.nip}</div>` : ''}
                                 </div>
                             </td>
                         </tr>
                     </table>
-                    ${watermarkHtml} </div>
+                    
+                    ${parafHtml}
+                    ${watermarkHtml}
+                </div>
+                
+                <div style="height: 20px;"></div>
             </div>
+
             <img src="${foot}" class="footer-img">
         </body>
         </html>`;
@@ -388,7 +395,6 @@ async function createPDFBuffer(data) {
         const page = await browser.newPage();
         await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
 
-        // Auto Resize Font logic (Simpel)
         await page.evaluate(() => {
             const body = document.body;
             const MAX_HEIGHT = 1180; 
@@ -403,7 +409,6 @@ async function createPDFBuffer(data) {
         const pdfBuffer = await page.pdf({ width: '215mm', height: '330mm', printBackground: true, margin: { top:0, right:0, bottom:0, left:0 } });
         await browser.close();
 
-        // Merge Lampiran
         if (data.lampiran && data.lampiran.length > 0) {
             const mergedPdf = await PDFDocument.load(pdfBuffer);
             for (const att of data.lampiran) {
