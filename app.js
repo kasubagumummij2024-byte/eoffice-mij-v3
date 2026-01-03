@@ -73,7 +73,7 @@ const imgToBase64 = (relativePath) => {
     } catch (e) { return null; }
 };
 
-// === 1. FUNGSI STAMPING (UPLOAD MODE) ===
+// === 1. FUNGSI STAMPING (UPLOAD MODE - REVISI LENGKAP) ===
 async function stampPDF(originalPdfBase64, stampData) {
     const cleanBase64 = (str) => {
         if (!str || typeof str !== 'string') return null;
@@ -81,15 +81,17 @@ async function stampPDF(originalPdfBase64, stampData) {
     };
 
     try {
-        const { nomor_surat, qr_data, locations, lampiran, render_width } = stampData;
+        const { nomor_surat, qr_data, locations, lampiran, render_width, reviewers, is_approved } = stampData;
         const mainPdfStr = cleanBase64(originalPdfBase64);
         if (!mainPdfStr) throw new Error("File PDF Utama Kosong/Corrupt");
 
         const pdfBuffer = Buffer.from(mainPdfStr, 'base64');
         const pdfDoc = await PDFDocument.load(pdfBuffer);
         const pages = pdfDoc.getPages();
+        const firstPage = pages[0]; // Kita stamp halaman pertama saja untuk footer/header
+        const { width: pageWidth, height: pageHeight } = firstPage.getSize();
 
-        // Generate QR
+        // 1. GENERATE QR CODE IMAGE
         let qrImage = null;
         if (qr_data) {
             try {
@@ -97,6 +99,7 @@ async function stampPDF(originalPdfBase64, stampData) {
                 const canvas = createCanvas(canvasSize, canvasSize);
                 await QRCode.toCanvas(canvas, qr_data, { width: canvasSize, margin: 1, errorCorrectionLevel: 'H' });
                 
+                // Tambahkan Logo di Tengah QR
                 const logoPath = path.join(__dirname, 'src', 'assets', 'logo-mij.png');
                 if (fs.existsSync(logoPath)) {
                     const ctx = canvas.getContext('2d');
@@ -111,56 +114,103 @@ async function stampPDF(originalPdfBase64, stampData) {
             } catch (qrErr) { console.error("QR Error:", qrErr); }
         }
 
-        // --- ADD STAMPS ---
+        // 2. EMBED FONT
+        const fontBold = await pdfDoc.embedFont('Helvetica-Bold');
+        const fontReg = await pdfDoc.embedFont('Helvetica');
+        const fontOblique = await pdfDoc.embedFont('Helvetica-Oblique');
+
+        // 3. GAMBAR STAMP UTAMA (Nomor & QR) BERDASARKAN LOKASI DARI FRONTEND
         if (locations && Array.isArray(locations)) {
             for (const loc of locations) {
                 try {
                     const pageIdx = parseInt(loc.pageIndex);
                     if (isNaN(pageIdx) || pageIdx < 0 || pageIdx >= pages.length) continue;
-                    const page = pages[pageIdx];
-                    const { width: pageWidth, height: pageHeight } = page.getSize();
+                    const targetPage = pages[pageIdx];
+                    const { width: pgW, height: pgH } = targetPage.getSize();
+                    
                     const safeWidth = (parseFloat(render_width) > 50) ? parseFloat(render_width) : 600; 
-                    const scale = pageWidth / safeWidth;
+                    const scale = pgW / safeWidth;
+                    
                     const finalW = (parseFloat(loc.w) || 80) * scale;
                     const finalH = (parseFloat(loc.h) || 80) * scale;
                     const finalX = (parseFloat(loc.x) || 0) * scale;
-                    const finalY = pageHeight - ((parseFloat(loc.y) || 0) * scale) - finalH; 
+                    
+                    // PDF coordinates start from bottom-left, Frontend usually top-left
+                    // Rumus Y: PageHeight - (Y_Frontend * Scale) - ObjectHeight
+                    const finalY = pgH - ((parseFloat(loc.y) || 0) * scale) - finalH; 
                     
                     if (loc.type === 'qr' && qrImage) {
-                        page.drawImage(qrImage, { x: finalX, y: finalY, width: finalW, height: finalH });
+                        targetPage.drawImage(qrImage, { x: finalX, y: finalY, width: finalW, height: finalH });
                     } else if (loc.type === 'nomor') {
                         let fontSize = Math.floor(finalH * 0.65);
                         if(fontSize < 8) fontSize = 8;
-                        const font = await pdfDoc.embedFont('Helvetica-Bold');
-                        page.drawText(String(nomor_surat || '-'), { x: finalX, y: finalY + (finalH * 0.2), size: fontSize, font: font, color: rgb(0,0,0) });
+                        targetPage.drawText(String(nomor_surat || '-'), { 
+                            x: finalX, 
+                            y: finalY + (finalH * 0.2), 
+                            size: fontSize, 
+                            font: fontBold, 
+                            color: rgb(0,0,0) 
+                        });
                     }
-                } catch (errStamp) { }
+                } catch (errStamp) { console.log("Stamp item error:", errStamp); }
             }
         }
 
-        // --- TAMBAHAN: WATERMARK FOOTER (UPLOAD MODE) ---
-        // Jika surat sudah disetujui, tambahkan tulisan di bawah halaman pertama (atau semua halaman)
-        if (nomor_surat && !nomor_surat.includes('Draft')) {
-             try {
-                const font = await pdfDoc.embedFont('Helvetica-Oblique');
-                const firstPage = pages[0];
-                const { width } = firstPage.getSize();
-                const text = "Dokumen ini tidak valid";
-                const textSize = 9;
-                const textWidth = font.widthOfTextAtSize(text, textSize);
-                
-                // Taruh di tengah bawah
-                firstPage.drawText(text, {
-                    x: (width - textWidth) / 2,
-                    y: 27,
-                    size: textSize,
-                    font: font,
-                    color: rgb(0.5, 0.5, 0.5),
-                });
-             } catch(e) {}
+        // 4. GAMBAR ELEMENT TAMBAHAN (Disclaimer & Pemaraf)
+        // Koordinat Y=0 ada di paling bawah. Kita mainkan koordinat Y untuk menaikkan teks.
+        
+        if (is_approved) {
+            // A. DISCLAIMER (DIGITAL SIGNATURE)
+            // Posisi: Tengah Bawah, agak naik agar tidak menabrak footer gambar
+            const textDisclaimer = "Dokumen ini telah ditandatangani secara elektronik (Digital Signature) | Validitas dokumen dapat dicek melalui QR Code di atas.";
+            const sizeDisc = 8;
+            const textWidth = fontOblique.widthOfTextAtSize(textDisclaimer, sizeDisc);
+            const xDisc = (pageWidth - textWidth) / 2; // Center
+            const yDisc = 50; // REVISI: Naikkan ke 50 (sebelumnya mungkin 20/30) agar aman dari footer
+
+            firstPage.drawText(textDisclaimer, {
+                x: xDisc,
+                y: yDisc,
+                size: sizeDisc,
+                font: fontOblique,
+                color: rgb(0.4, 0.4, 0.4), // Abu-abu
+            });
+
+            // B. DAFTAR PEMARAF (REVIEWERS)
+            // Posisi: Di atas Disclaimer, Rata Kiri atau Center (Kita buat center saja agar rapi di surat upload)
+            if (reviewers && reviewers.length > 0) {
+                const approvedReviewers = reviewers.filter(r => r.status === 'APPROVED');
+                if (approvedReviewers.length > 0) {
+                    const names = approvedReviewers.map(r => `[ ${r.nama} ]`).join(' / ');
+                    const textParaf = `Paraf Koordinasi: ${names}`;
+                    const sizeParaf = 8;
+                    const textWidthParaf = fontReg.widthOfTextAtSize(textParaf, sizeParaf);
+                    const xParaf = (pageWidth - textWidthParaf) / 2; // Center
+                    const yParaf = yDisc + 15; // 15 point di atas disclaimer
+
+                    firstPage.drawText(textParaf, {
+                        x: xParaf,
+                        y: yParaf,
+                        size: sizeParaf,
+                        font: fontReg,
+                        color: rgb(0.2, 0.2, 0.2), // Hitam pudar
+                    });
+                }
+            }
+        } else {
+            // JIKA DRAFT: Tampilkan watermark Draft
+            const textDraft = "DOKUMEN INI TIDAK VALID (DRAFT)";
+            const widthDraft = fontBold.widthOfTextAtSize(textDraft, 12);
+             firstPage.drawText(textDraft, {
+                x: (pageWidth - widthDraft) / 2,
+                y: 30,
+                size: 12,
+                font: fontBold,
+                color: rgb(1, 0, 0), // Merah
+            });
         }
 
-        // --- MERGE LAMPIRAN ---
+        // 5. MERGE LAMPIRAN (Sama seperti sebelumnya)
         if (lampiran && Array.isArray(lampiran)) {
             for (const att of lampiran) {
                 try {
@@ -168,6 +218,7 @@ async function stampPDF(originalPdfBase64, stampData) {
                     const cleanAtt = cleanBase64(rawAtt);
                     if (!cleanAtt) continue;
                     const attBuffer = Buffer.from(cleanAtt, 'base64');
+                    // Cek header PDF %PDF
                     if (attBuffer.toString('utf8', 0, 4) !== '%PDF') continue; 
                     const attPdf = await PDFDocument.load(attBuffer);
                     const copiedPages = await pdfDoc.copyPages(attPdf, attPdf.getPageIndices());
@@ -183,17 +234,22 @@ async function stampPDF(originalPdfBase64, stampData) {
 async function createPDFBuffer(data) {
     const APP_URL = "https://eoffice-mij-v3-production.up.railway.app"; 
 
-    // A. JIKA MODE UPLOAD
+// A. JIKA MODE UPLOAD
     if (data.mode_buat === 'upload' && data.uploaded_file_base64) {
         const isApproved = data.status_global === 'APPROVED';
         const nomorSurat = isApproved ? data.nomor_surat : "Draft/......../........";
         const qrLink = isApproved ? `${APP_URL}/verify/${data.id_surat}` : 'PREVIEW_QR';
+        
         return await stampPDF(data.uploaded_file_base64, {
             nomor_surat: nomorSurat,
             qr_data: qrLink,
             locations: data.stamp_locations || [],
             lampiran: data.lampiran || [],
-            render_width: data.render_width || 600
+            render_width: data.render_width || 600,
+            
+            // TAMBAHAN DATA PENTING UNTUK STAMP
+            reviewers: data.reviewers || [], // Kirim data pemaraf
+            is_approved: isApproved          // Kirim status approve
         });
     }
 
